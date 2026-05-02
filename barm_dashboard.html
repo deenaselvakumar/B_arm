@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>B-ARM | Inventory & Forecast Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:       #05060f;
+  --bg2:      #0c0e1e;
+  --bg3:      #111428;
+  --border:   #1e2240;
+  --accent:   #f0a500;
+  --accent2:  #e05aff;
+  --green:    #00e5a0;
+  --red:      #ff4060;
+  --orange:   #ff7a30;
+  --blue:     #3b82f6;
+  --text:     #e8eaf0;
+  --muted:    #4a506a;
+  --card-bg:  rgba(12,14,30,0.85);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:'Syne',sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  overflow-x:hidden;
+}
+
+/* ---- GRID NOISE BACKGROUND ---- */
+body::before{
+  content:'';
+  position:fixed;inset:0;
+  background-image:
+    linear-gradient(rgba(240,165,0,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(240,165,0,.03) 1px, transparent 1px);
+  background-size:40px 40px;
+  pointer-events:none;z-index:0;
+}
+
+/* ---- HEADER ---- */
+header{
+  position:sticky;top:0;z-index:100;
+  background:rgba(5,6,15,0.92);
+  backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+  padding:0 24px;
+  display:flex;align-items:center;justify-content:space-between;
+  height:60px;
+}
+.logo{
+  display:flex;align-items:center;gap:12px;
+  font-family:'Space Mono',monospace;
+  font-size:18px;font-weight:700;
+  letter-spacing:2px;
+  color:var(--accent);
+}
+.logo span{color:var(--text);font-size:11px;letter-spacing:3px;opacity:.5;margin-left:4px;}
+.nav-tabs{display:flex;gap:4px;}
+.nav-tab{
+  padding:7px 16px;border-radius:6px;
+  border:none;cursor:pointer;
+  font-family:'Syne',sans-serif;font-size:12px;font-weight:700;
+  letter-spacing:.8px;text-transform:uppercase;
+  background:transparent;color:var(--muted);
+  transition:all .2s;
+}
+.nav-tab:hover{color:var(--text);background:var(--bg3);}
+.nav-tab.active{background:var(--accent);color:#000;}
+.header-right{
+  display:flex;align-items:center;gap:12px;
+}
+.live-dot{
+  width:8px;height:8px;border-radius:50%;
+  background:var(--green);
+  box-shadow:0 0 8px var(--green);
+  animation:pulse 2s infinite;
+}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.6;transform:scale(1.3);}}
+.refresh-btn{
+  padding:7px 14px;border-radius:6px;
+  border:1px solid var(--border);
+  background:transparent;color:var(--muted);
+  font-family:'Space Mono',monospace;font-size:11px;
+  cursor:pointer;transition:all .2s;
+}
+.refresh-btn:hover{border-color:var(--accent);color:var(--accent);}
+.last-updated{font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;}
+
+/* ---- PAGES ---- */
+.page{display:none;padding:24px;position:relative;z-index:1;}
+.page.active{display:block;}
+
+/* ---- KPI ROW ---- */
+.kpi-row{
+  display:grid;grid-template-columns:repeat(6,1fr);
+  gap:12px;margin-bottom:24px;
+}
+.kpi-card{
+  background:var(--card-bg);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:16px 18px;
+  position:relative;overflow:hidden;
+  transition:transform .2s,border-color .2s;
+}
+.kpi-card:hover{transform:translateY(-2px);border-color:var(--accent);}
+.kpi-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));
+  opacity:0;transition:opacity .2s;
+}
+.kpi-card:hover::before{opacity:1;}
+.kpi-label{font-size:10px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:8px;}
+.kpi-value{font-family:'Space Mono',monospace;font-size:22px;font-weight:700;line-height:1;}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:5px;}
+.kpi-trend{font-size:11px;margin-top:4px;}
+.trend-up{color:var(--green);}
+.trend-dn{color:var(--red);}
+
+/* ---- SECTION HEADERS ---- */
+.section-title{
+  font-size:13px;font-weight:700;letter-spacing:2px;
+  text-transform:uppercase;color:var(--muted);
+  margin-bottom:14px;
+  display:flex;align-items:center;gap:10px;
+}
+.section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+
+/* ---- GRID LAYOUTS ---- */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px;}
+.grid-7-3{display:grid;grid-template-columns:7fr 3fr;gap:16px;margin-bottom:24px;}
+
+/* ---- CHART CARD ---- */
+.chart-card{
+  background:var(--card-bg);
+  border:1px solid var(--border);
+  border-radius:10px;padding:20px;
+}
+.chart-title{
+  font-size:13px;font-weight:700;letter-spacing:1px;
+  text-transform:uppercase;margin-bottom:16px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.chart-wrap{position:relative;}
+
+/* ---- FORECAST TABLE ---- */
+.table-card{
+  background:var(--card-bg);border:1px solid var(--border);
+  border-radius:10px;overflow:hidden;margin-bottom:24px;
+}
+.table-controls{
+  padding:14px 18px;display:flex;gap:10px;align-items:center;
+  border-bottom:1px solid var(--border);flex-wrap:wrap;
+}
+.search-input{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:6px;padding:7px 12px;
+  color:var(--text);font-family:'Syne',sans-serif;font-size:12px;
+  outline:none;width:260px;transition:border-color .2s;
+}
+.search-input:focus{border-color:var(--accent);}
+.filter-btn{
+  padding:6px 14px;border-radius:6px;
+  border:1px solid var(--border);background:transparent;
+  color:var(--muted);font-family:'Syne',sans-serif;font-size:11px;font-weight:700;
+  cursor:pointer;transition:all .2s;letter-spacing:.5px;
+}
+.filter-btn:hover,.filter-btn.active{
+  border-color:var(--accent);color:var(--accent);
+  background:rgba(240,165,0,.08);
+}
+.table-wrap{overflow-x:auto;max-height:460px;overflow-y:auto;}
+table{width:100%;border-collapse:collapse;}
+thead{position:sticky;top:0;z-index:2;}
+th{
+  padding:10px 14px;text-align:left;
+  font-size:10px;letter-spacing:1.5px;font-weight:700;
+  text-transform:uppercase;color:var(--muted);
+  background:var(--bg2);border-bottom:1px solid var(--border);
+  cursor:pointer;white-space:nowrap;user-select:none;
+  transition:color .2s;
+}
+th:hover{color:var(--accent);}
+td{
+  padding:10px 14px;font-size:12px;
+  border-bottom:1px solid rgba(30,34,64,.5);
+  white-space:nowrap;
+}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(240,165,0,.03);}
+
+/* ---- BADGES ---- */
+.badge{
+  display:inline-block;padding:2px 8px;border-radius:4px;
+  font-size:10px;font-weight:700;letter-spacing:.5px;
+}
+.badge-am{background:#FF9900 22;color:#FF9900;border:1px solid #FF990044;}
+.badge-fk{background:#2874F022;color:#60a5fa;border:1px solid #2874F044;}
+.badge-bo{background:#00e5a022;color:#00e5a0;border:1px solid #00e5a044;}
+.badge-bof{background:#a78bfa22;color:#a78bfa;border:1px solid #a78bfa44;}
+
+.status-ok{color:var(--green);font-weight:700;}
+.status-low{color:var(--orange);font-weight:700;}
+.status-critical{color:var(--red);font-weight:700;}
+.status-oos{color:#ff0040;font-weight:700;animation:blink 1s infinite;}
+@keyframes blink{50%{opacity:.4;}}
+
+/* ---- STOCK BARS ---- */
+.stock-bar-wrap{width:80px;display:inline-block;vertical-align:middle;}
+.stock-bar{height:4px;border-radius:2px;background:var(--border);overflow:hidden;}
+.stock-bar-fill{height:100%;border-radius:2px;transition:width .5s;}
+
+/* ---- UPLOAD PAGE ---- */
+.upload-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;}
+.upload-card{
+  background:var(--card-bg);border:1px solid var(--border);
+  border-radius:10px;padding:20px;
+  transition:border-color .2s;
+}
+.upload-card:hover{border-color:var(--accent);}
+.upload-card h3{font-size:13px;font-weight:700;letter-spacing:1px;margin-bottom:6px;color:var(--accent);}
+.upload-card p{font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.6;}
+.drop-zone{
+  border:2px dashed var(--border);border-radius:8px;
+  padding:24px;text-align:center;cursor:pointer;
+  transition:all .2s;
+}
+.drop-zone:hover,.drop-zone.dragover{
+  border-color:var(--accent);background:rgba(240,165,0,.04);
+}
+.drop-zone input{display:none;}
+.drop-icon{font-size:28px;margin-bottom:8px;}
+.drop-text{font-size:12px;color:var(--muted);}
+.drop-text strong{color:var(--text);}
+.upload-btn{
+  width:100%;margin-top:10px;padding:9px;
+  border-radius:6px;border:none;
+  background:var(--accent);color:#000;
+  font-family:'Syne',sans-serif;font-size:12px;font-weight:700;
+  cursor:pointer;transition:opacity .2s;letter-spacing:.5px;
+}
+.upload-btn:hover{opacity:.85;}
+.upload-btn:disabled{opacity:.4;cursor:not-allowed;}
+.upload-status{font-size:11px;margin-top:8px;min-height:16px;font-family:'Space Mono',monospace;}
+.status-success{color:var(--green);}
+.status-error{color:var(--red);}
+.status-loading{color:var(--accent);}
+
+/* ---- N8N PAGE ---- */
+.n8n-card{
+  background:var(--card-bg);border:1px solid var(--border);
+  border-radius:10px;padding:24px;margin-bottom:16px;
+}
+.n8n-card h3{color:var(--accent2);font-size:16px;font-weight:700;margin-bottom:10px;}
+.step-list{list-style:none;counter-reset:steps;}
+.step-list li{
+  counter-increment:steps;
+  display:flex;gap:14px;
+  padding:14px 0;border-bottom:1px solid var(--border);
+}
+.step-list li:last-child{border-bottom:none;}
+.step-num{
+  width:28px;height:28px;border-radius:50%;
+  background:rgba(224,90,255,.15);border:1px solid var(--accent2);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Space Mono',monospace;font-size:12px;font-weight:700;
+  color:var(--accent2);flex-shrink:0;
+}
+.step-content h4{font-size:13px;font-weight:700;margin-bottom:4px;color:var(--text);}
+.step-content p{font-size:12px;color:var(--muted);line-height:1.6;}
+pre.code-block{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:8px;padding:16px;
+  font-family:'Space Mono',monospace;font-size:11px;
+  color:#7dd3fc;overflow-x:auto;margin-top:10px;
+  line-height:1.7;
+}
+.copy-btn{
+  float:right;padding:4px 12px;border-radius:4px;
+  border:1px solid var(--border);background:transparent;
+  color:var(--muted);font-family:'Space Mono',monospace;font-size:10px;
+  cursor:pointer;transition:all .2s;
+}
+.copy-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+/* ---- ALERTS PAGE ---- */
+.alert-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 18px;border-bottom:1px solid var(--border);
+  transition:background .2s;
+}
+.alert-row:hover{background:rgba(240,165,0,.03);}
+.alert-row:last-child{border-bottom:none;}
+.alert-sku{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:var(--accent);}
+.alert-prod{font-size:11px;color:var(--muted);margin-top:2px;}
+
+/* ---- LOADING SPINNER ---- */
+.spinner{
+  display:inline-block;width:20px;height:20px;
+  border:2px solid var(--border);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-overlay{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:12px;padding:48px;color:var(--muted);font-size:13px;
+}
+
+/* ---- SCROLLBAR ---- */
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:var(--bg2);}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+::-webkit-scrollbar-thumb:hover{background:var(--muted);}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">⬡ B-ARM<span>INVENTORY OS</span></div>
+  <nav class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('overview')">Overview</button>
+    <button class="nav-tab" onclick="showPage('forecast')">Forecast</button>
+    <button class="nav-tab" onclick="showPage('stock')">Stock</button>
+    <button class="nav-tab" onclick="showPage('alerts')">Alerts</button>
+    <button class="nav-tab" onclick="showPage('upload')">Upload Data</button>
+    <button class="nav-tab" onclick="showPage('n8n')">n8n Automation</button>
+  </nav>
+  <div class="header-right">
+    <div class="live-dot"></div>
+    <span class="last-updated" id="lastUpdated">Loading…</span>
+    <button class="refresh-btn" onclick="loadAllData()">⟳ Refresh</button>
+  </div>
+</header>
+
+<!-- ==================== OVERVIEW PAGE ==================== -->
+<div class="page active" id="page-overview">
+  <div class="kpi-row" id="kpiRow">
+    <div class="loading-overlay" style="grid-column:1/-1"><div class="spinner"></div></div>
+  </div>
+
+  <div class="grid-7-3">
+    <div class="chart-card">
+      <div class="chart-title">
+        Sales Trend — Last 30 Days (All Platforms)
+        <div style="display:flex;gap:8px;font-size:11px;">
+          <span style="color:#FF9900">■ Amazon</span>
+          <span style="color:#60a5fa">■ Flipkart</span>
+          <span style="color:#00e5a0">■ B-Arm</span>
+        </div>
+      </div>
+      <div class="chart-wrap" style="height:220px;">
+        <canvas id="salesChart"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Platform Split (30D)</div>
+      <div class="chart-wrap" style="height:220px;">
+        <canvas id="platformChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-3">
+    <div class="chart-card">
+      <div class="chart-title">Return Rate by Platform</div>
+      <div class="chart-wrap" style="height:180px;">
+        <canvas id="returnChart"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Stock Status Distribution</div>
+      <div class="chart-wrap" style="height:180px;">
+        <canvas id="stockStatusChart"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Top 10 SKUs by Orders (30D)</div>
+      <div style="height:180px;overflow-y:auto;" id="topSkuList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== FORECAST PAGE ==================== -->
+<div class="page" id="page-forecast">
+  <div class="section-title">Demand Forecast — All SKUs (Based on 30D Net Orders)</div>
+  <div class="table-card">
+    <div class="table-controls">
+      <input class="search-input" id="fSearch" placeholder="🔍  Search SKU or product…" oninput="filterForecast()">
+      <button class="filter-btn active" onclick="setFFilter('all',this)">All</button>
+      <button class="filter-btn" onclick="setFFilter('critical',this)">🔴 Critical</button>
+      <button class="filter-btn" onclick="setFFilter('low',this)">🟠 Low Stock</button>
+      <button class="filter-btn" onclick="setFFilter('ok',this)">🟢 OK</button>
+      <button class="filter-btn" onclick="setFFilter('oos',this)">⚫ Out of Stock</button>
+      <span style="margin-left:auto;font-size:11px;color:var(--muted);" id="fCount"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th onclick="sortTable('sku')">SKU ↕</th>
+            <th onclick="sortTable('platforms')">Platforms</th>
+            <th onclick="sortTable('total_orders_30d')">Orders 30D ↕</th>
+            <th onclick="sortTable('total_returns_30d')">Returns 30D ↕</th>
+            <th onclick="sortTable('return_rate_pct')">Ret% ↕</th>
+            <th onclick="sortTable('net_orders_30d')">Net Orders ↕</th>
+            <th onclick="sortTable('freq_per_day')">Units/Day ↕</th>
+            <th onclick="sortTable('restock_30d')">Need 30D ↕</th>
+            <th onclick="sortTable('restock_90d')">Need 90D ↕</th>
+            <th onclick="sortTable('restock_180d')">Need 180D ↕</th>
+            <th onclick="sortTable('current_stock')">In Stock ↕</th>
+            <th onclick="sortTable('stock_gap_90d')">Gap 90D ↕</th>
+            <th onclick="sortTable('revenue_30d')">Revenue 30D ↕</th>
+            <th onclick="sortTable('stock_status')">Status ↕</th>
+          </tr>
+        </thead>
+        <tbody id="forecastTbody">
+          <tr><td colspan="14"><div class="loading-overlay"><div class="spinner"></div></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== STOCK PAGE ==================== -->
+<div class="page" id="page-stock">
+  <div class="section-title">Current Inventory vs Demand</div>
+  <div class="grid-2" style="margin-bottom:24px;">
+    <div class="chart-card">
+      <div class="chart-title">Stock Coverage (Days of Supply) — Top 20 SKUs</div>
+      <div class="chart-wrap" style="height:280px;"><canvas id="coverageChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Stock Gap vs Restock Need (90D) — Top 20</div>
+      <div class="chart-wrap" style="height:280px;"><canvas id="gapChart"></canvas></div>
+    </div>
+  </div>
+  <div class="section-title">Stock Detail Table</div>
+  <div class="table-card">
+    <div class="table-controls">
+      <input class="search-input" id="sSearch" placeholder="🔍  Search SKU…" oninput="filterStock()">
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>SKU</th>
+            <th>Units/Day</th>
+            <th>Current Stock</th>
+            <th>Stock Visual</th>
+            <th>Days of Supply</th>
+            <th>Restock 30D</th>
+            <th>Restock 90D</th>
+            <th>Gap 90D</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="stockTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== ALERTS PAGE ==================== -->
+<div class="page" id="page-alerts">
+  <div class="grid-2">
+    <div>
+      <div class="section-title">🚨 Out of Stock / Critical</div>
+      <div class="table-card" id="criticalAlerts">
+        <div class="loading-overlay"><div class="spinner"></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="section-title">⚠️ High Return Rate (&gt;30%)</div>
+      <div class="table-card" id="returnAlerts">
+        <div class="loading-overlay"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="section-title">📦 Restock Required in Next 30 Days</div>
+  <div class="table-card" id="restockAlerts">
+    <div class="loading-overlay"><div class="spinner"></div></div>
+  </div>
+</div>
+
+<!-- ==================== UPLOAD PAGE ==================== -->
+<div class="page" id="page-upload">
+  <div class="section-title">Upload CSV Files — Data is Inserted Directly to Supabase</div>
+  <div class="upload-grid">
+
+    <div class="upload-card">
+      <h3>Amazon Orders</h3>
+      <p>CSV with columns: amazon-order-id, sku, purchase-date, order-status, quantity, item-price</p>
+      <div class="drop-zone" id="dz-am_orders" onclick="document.getElementById('f-am_orders').click()">
+        <input type="file" id="f-am_orders" accept=".csv" onchange="handleUpload(this,'am_orders')">
+        <div class="drop-icon">📦</div>
+        <div class="drop-text"><strong>Click or drag</strong> AM_orders.csv</div>
+      </div>
+      <div class="upload-status" id="st-am_orders"></div>
+    </div>
+
+    <div class="upload-card">
+      <h3>Amazon Returns</h3>
+      <p>CSV with: Merchant SKU, Return quantity, Return request date, Return request status</p>
+      <div class="drop-zone" onclick="document.getElementById('f-am_returns').click()">
+        <input type="file" id="f-am_returns" accept=".csv" onchange="handleUpload(this,'am_returns')">
+        <div class="drop-icon">↩️</div>
+        <div class="drop-text"><strong>Click or drag</strong> AM_returns.csv</div>
+      </div>
+      <div class="upload-status" id="st-am_returns"></div>
+    </div>
+
+    <div class="upload-card">
+      <h3>Amazon FBA Returns</h3>
+      <p>CSV with: sku, quantity, return-date, detailed-disposition, reason</p>
+      <div class="drop-zone" onclick="document.getElementById('f-am_fba').click()">
+        <input type="file" id="f-am_fba" accept=".csv" onchange="handleUpload(this,'am_fba_returns')">
+        <div class="drop-icon">🏭</div>
+        <div class="drop-text"><strong>Click or drag</strong> AM_FBA_returns.csv</div>
+      </div>
+      <div class="upload-status" id="st-am_fba_returns"></div>
+    </div>
+
+    <div class="upload-card">
+      <h3>Flipkart Orders</h3>
+      <p>CSV with: order_item_id, sku, order_date, order_item_status, quantity</p>
+      <div class="drop-zone" onclick="document.getElementById('f-fk_orders').click()">
+        <input type="file" id="f-fk_orders" accept=".csv" onchange="handleUpload(this,'fk_orders')">
+        <div class="drop-icon">🛍️</div>
+        <div class="drop-text"><strong>Click or drag</strong> FK_orders.csv</div>
+      </div>
+      <div class="upload-status" id="st-fk_orders"></div>
+    </div>
+
+    <div class="upload-card">
+      <h3>Flipkart Returns</h3>
+      <p>CSV with: SKU, Quantity, Return Requested Date, Return Status</p>
+      <div class="drop-zone" onclick="document.getElementById('f-fk_returns').click()">
+        <input type="file" id="f-fk_returns" accept=".csv" onchange="handleUpload(this,'fk_returns')">
+        <div class="drop-icon">↩️</div>
+        <div class="drop-text"><strong>Click or drag</strong> FK_returns.csv</div>
+      </div>
+      <div class="upload-status" id="st-fk_returns"></div>
+    </div>
+
+    <div class="upload-card">
+      <h3>B-Arm Online Orders</h3>
+      <p>CSV with: SKU, Quantity, Order Date, Order Status, Order Total Amount</p>
+      <div class="drop-zone" onclick="document.getElementById('f-barm_on').click()">
+        <input type="file" id="f-barm_on" accept=".csv" onchange="handleUpload(this,'barm_online_orders')">
+        <div class="drop-icon">🌐</div>
+        <div class="drop-text"><strong>Click or drag</strong> Barm_online_orders.csv</div>
+      </div>
+      <div class="upload-status" id="st-barm_online_orders"></div>
+    </div>
+
+    <div class="upload-card">
+      <h3>B-Arm Offline Orders</h3>
+      <p>CSV with: SKU ID, Quantity, Date, Price per Product, Total Price</p>
+      <div class="drop-zone" onclick="document.getElementById('f-barm_off').click()">
+        <input type="file" id="f-barm_off" accept=".csv" onchange="handleUpload(this,'barm_offline_orders')">
+        <div class="drop-icon">🏪</div>
+        <div class="drop-text"><strong>Click or drag</strong> Barm_offline_orders.csv</div>
+      </div>
+      <div class="upload-status" id="st-barm_offline_orders"></div>
+    </div>
+
+    <div class="upload-card">
+      <h3>Current Stock</h3>
+      <p>CSV with: Product name, SKU, Final Stock in Warehouse, QC Godown, Packing Godown</p>
+      <div class="drop-zone" onclick="document.getElementById('f-stock').click()">
+        <input type="file" id="f-stock" accept=".csv" onchange="handleUpload(this,'current_stock')">
+        <div class="drop-icon">📊</div>
+        <div class="drop-text"><strong>Click or drag</strong> Current_stock.csv</div>
+      </div>
+      <div class="upload-status" id="st-current_stock"></div>
+    </div>
+
+    <div class="upload-card">
+      <h3>Meesho Returns</h3>
+      <p>CSV with: SKU, Product Name, Qty, Order Number, Return Created Date, Type of Return</p>
+      <div class="drop-zone" onclick="document.getElementById('f-meesho').click()">
+        <input type="file" id="f-meesho" accept=".csv" onchange="handleUpload(this,'meesho_returns')">
+        <div class="drop-icon">🔄</div>
+        <div class="drop-text"><strong>Click or drag</strong> Meesho_delivered.csv</div>
+      </div>
+      <div class="upload-status" id="st-meesho_returns"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ==================== N8N PAGE ==================== -->
+<div class="page" id="page-n8n">
+  <div class="section-title">n8n Workflow Automation — Auto-Upload CSVs to Supabase</div>
+
+  <div class="n8n-card">
+    <h3>🔗 How it Works</h3>
+    <p style="color:var(--muted);font-size:13px;line-height:1.8;margin-bottom:16px;">
+      n8n watches a Google Drive folder (or email attachment). When you drop a new CSV,
+      n8n reads it, maps the columns, and POSTs each row to Supabase via REST API.
+      The forecast view auto-recalculates. Your dashboard shows live data within seconds.
+    </p>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:0;text-align:center;padding:16px 0;">
+      <div style="padding:12px;">
+        <div style="font-size:28px;margin-bottom:6px;">📁</div>
+        <div style="font-size:11px;color:var(--muted);">Drop CSV in<br>Google Drive</div>
+      </div>
+      <div style="padding:12px;display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--accent);">→</div>
+      <div style="padding:12px;">
+        <div style="font-size:28px;margin-bottom:6px;">⚙️</div>
+        <div style="font-size:11px;color:var(--muted);">n8n Trigger<br>fires</div>
+      </div>
+      <div style="padding:12px;display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--accent);">→</div>
+      <div style="padding:12px;">
+        <div style="font-size:28px;margin-bottom:6px;">🗄️</div>
+        <div style="font-size:11px;color:var(--muted);">Rows inserted<br>into Supabase</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="n8n-card">
+    <h3>📋 Step-by-Step Setup</h3>
+    <ol class="step-list">
+      <li>
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h4>Install n8n (self-hosted or cloud)</h4>
+          <p>Install n8n via Docker: <code style="color:var(--accent);font-size:11px;">docker run -it --rm --name n8n -p 5678:5678 n8nio/n8n</code> or sign up at n8n.cloud. Open <strong>localhost:5678</strong>.</p>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h4>Create a New Workflow — Add Google Drive Trigger</h4>
+          <p>Node: <strong>Google Drive → On File Updated/Created</strong>. Set Folder to your "B-Arm Uploads" folder. Authenticate with your Google account. Set Poll Every: 15 minutes.</p>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h4>Add: Read Binary File → Convert CSV to JSON</h4>
+          <p>Node: <strong>Spreadsheet File</strong> (Read from Binary). It auto-detects CSV and converts each row to JSON. Use Expression: <code style="color:var(--accent);">{{ $binary.data }}</code></p>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <h4>Add: Switch Node — Route by Filename</h4>
+          <p>Add a <strong>Switch</strong> node. Route based on <code style="color:var(--accent);">{{ $node["Google Drive"].json.name }}</code>. Cases: <em>AM_orders</em>, <em>FK_orders</em>, <em>Barm_online</em>, etc.</p>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">5</div>
+        <div class="step-content">
+          <h4>Add: HTTP Request → Supabase REST API (per table)</h4>
+          <p>Node: <strong>HTTP Request</strong>. Method: POST. URL as shown below. Add headers and body. Use <strong>Split In Batches</strong> node (batch=200) before this to handle large files.</p>
+          <pre class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>URL:
+https://xedxytlrgxrdsfcngsaw.supabase.co/rest/v1/am_orders
+
+Headers:
+  apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+  Content-Type: application/json
+  Prefer: resolution=ignore-duplicates,return=minimal
+
+Body (JSON Array - one item per row):
+[
+  {
+    "amazon_order_id": "{{ $json['amazon-order-id'] }}",
+    "sku": "{{ $json['sku'] }}",
+    "purchase_date": "{{ $json['purchase-date'].split('T')[0] }}",
+    "order_status": "{{ $json['order-status'] }}",
+    "quantity": {{ $json['quantity'] }},
+    "item_price": {{ $json['item-price'] || 0 }}
+  }
+]</pre>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">6</div>
+        <div class="step-content">
+          <h4>Flipkart Orders Mapping</h4>
+          <pre class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>URL: https://xedxytlrgxrdsfcngsaw.supabase.co/rest/v1/fk_orders
+
+Body:
+[{
+  "order_item_id": "{{ $json['order_item_id'] }}",
+  "order_id": "{{ $json['order_id'] }}",
+  "order_date": "{{ $json['order_date'].split('T')[0] }}",
+  "order_item_status": "{{ $json['order_item_status'] }}",
+  "sku": "{{ $json['sku'].replace('SKU:','').trim() }}",
+  "quantity": {{ $json['quantity'] }}
+}]</pre>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">7</div>
+        <div class="step-content">
+          <h4>Current Stock Mapping</h4>
+          <pre class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>URL: https://xedxytlrgxrdsfcngsaw.supabase.co/rest/v1/current_stock
+
+Body:
+[{
+  "product_name": "{{ $json['Product name'] }}",
+  "sku": "{{ $json['SKU ID'] }}",
+  "final_stock_warehouse": {{ $json['Final Stock in Warehouse'] || 0 }},
+  "qc_godown_stock": {{ $json['QC Godown stock sheet'] || 0 }},
+  "packing_godown_stock": {{ $json['Packing godown stock sheet'] || 0 }}
+}]</pre>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">8</div>
+        <div class="step-content">
+          <h4>Schedule: Monthly Auto-Run</h4>
+          <p>Add a <strong>Schedule Trigger</strong> node. Set to "1st of every month at 9:00 AM". Connect it to the HTTP Request nodes directly. Every month it re-reads the Drive folder and refreshes Supabase.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+
+  <div class="n8n-card">
+    <h3>🔑 Supabase Credentials</h3>
+    <pre class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>Project URL: https://xedxytlrgxrdsfcngsaw.supabase.co
+Anon Key:    eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlZHh5dGxyZ3hyZHNmY25nc2F3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjI0MzIsImV4cCI6MjA5MjU5ODQzMn0.9-tYA3bg0CyEyFDfO3tPL95ATFJWuWMG-T3WhvdtMQ4
+
+Forecast View (read-only):
+  GET https://xedxytlrgxrdsfcngsaw.supabase.co/rest/v1/v_sku_forecast
+  Headers: apikey + Authorization (same key above)</pre>
+  </div>
+</div>
+
+<!-- ==================== JS ==================== -->
+<script>
+const SUPABASE_URL = 'https://xedxytlrgxrdsfcngsaw.supabase.co';
+const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlZHh5dGxyZ3hyZHNmY25nc2F3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjI0MzIsImV4cCI6MjA5MjU5ODQzMn0.9-tYA3bg0CyEyFDfO3tPL95ATFJWuWMG-T3WhvdtMQ4';
+
+const HEADERS = {
+  'apikey': ANON_KEY,
+  'Authorization': `Bearer ${ANON_KEY}`,
+  'Content-Type': 'application/json',
+  'Prefer': 'resolution=ignore-duplicates,return=minimal'
+};
+
+let forecastData = [], charts = {};
+
+async function sbGet(table, params='') {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {headers: HEADERS});
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+async function sbPost(table, rows) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+    method: 'POST', headers: HEADERS, body: JSON.stringify(rows)
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return r;
+}
+
+function fmt(n) {
+  if (!n) return '—';
+  if (n >= 100000) return '₹' + (n/100000).toFixed(1) + 'L';
+  if (n >= 1000) return '₹' + (n/1000).toFixed(1) + 'K';
+  return '₹' + parseFloat(n).toFixed(0);
+}
+
+function statusBadge(s) {
+  const map = {
+    'OK': '<span class="status-ok">● OK</span>',
+    'LOW': '<span class="status-low">● LOW</span>',
+    'CRITICAL': '<span class="status-critical">● CRITICAL</span>',
+    'OUT_OF_STOCK': '<span class="status-oos">● OUT OF STOCK</span>',
+  };
+  return map[s] || s;
+}
+
+function platformBadges(p) {
+  if (!p) return '—';
+  return p.split(', ').map(x => {
+    if (x.includes('Amazon')) return `<span class="badge badge-am">AM</span>`;
+    if (x.includes('Flipkart')) return `<span class="badge badge-fk">FK</span>`;
+    if (x.includes('Online')) return `<span class="badge badge-bo">B-Online</span>`;
+    if (x.includes('Offline')) return `<span class="badge badge-bof">B-Off</span>`;
+    return `<span class="badge">${x}</span>`;
+  }).join(' ');
+}
+
+// ---- LOAD ALL DATA ----
+async function loadAllData() {
+  document.getElementById('lastUpdated').textContent = 'Loading…';
+  try {
+    forecastData = await sbGet('v_sku_forecast', 'order=total_orders_30d.desc');
+  } catch(e) {
+    // Use sample data if Supabase not connected
+    forecastData = getSampleData();
+  }
+
+  renderKPIs();
+  renderForecastTable();
+  renderStockTable();
+  renderAlerts();
+  renderCharts();
+  document.getElementById('lastUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+}
+
+function getSampleData() {
+  return [
+    {sku:'SCGSB1',platforms:'Flipkart',total_orders_30d:306,total_returns_30d:87,net_orders_30d:219,freq_per_day:7.3,restock_30d:219,restock_90d:657,restock_180d:1314,current_stock:120,stock_gap_90d:537,revenue_30d:0,return_rate_pct:28.4,total_orders_90d:800,stock_status:'CRITICAL'},
+    {sku:'B-SENBR',platforms:'Flipkart',total_orders_30d:277,total_returns_30d:39,net_orders_30d:238,freq_per_day:7.93,restock_30d:238,restock_90d:714,restock_180d:1428,current_stock:0,stock_gap_90d:714,revenue_30d:0,return_rate_pct:14.1,total_orders_90d:700,stock_status:'OUT_OF_STOCK'},
+    {sku:'B-INSEM-KIT-PK2',platforms:'Amazon, Flipkart',total_orders_30d:152,total_returns_30d:37,net_orders_30d:115,freq_per_day:3.83,restock_30d:115,restock_90d:345,restock_180d:690,current_stock:200,stock_gap_90d:145,revenue_30d:363,return_rate_pct:24.3,total_orders_90d:400,stock_status:'LOW'},
+    {sku:'SCG-B-1',platforms:'Flipkart',total_orders_30d:140,total_returns_30d:25,net_orders_30d:115,freq_per_day:3.83,restock_30d:115,restock_90d:345,restock_180d:690,current_stock:500,stock_gap_90d:0,revenue_30d:0,return_rate_pct:17.9,total_orders_90d:380,stock_status:'OK'},
+    {sku:'B-SUTPRAC-PAD-1',platforms:'Amazon, Flipkart',total_orders_30d:125,total_returns_30d:25,net_orders_30d:100,freq_per_day:3.33,restock_30d:100,restock_90d:300,restock_180d:600,current_stock:80,stock_gap_90d:220,revenue_30d:1794,return_rate_pct:20,total_orders_90d:320,stock_status:'CRITICAL'},
+    {sku:'B-CT-SPIRAL-G',platforms:'Flipkart',total_orders_30d:105,total_returns_30d:8,net_orders_30d:97,freq_per_day:3.23,restock_30d:97,restock_90d:291,restock_180d:582,current_stock:350,stock_gap_90d:0,revenue_30d:0,return_rate_pct:7.6,total_orders_90d:280,stock_status:'OK'},
+    {sku:'B-SENBR-1',platforms:'Amazon, Flipkart',total_orders_30d:90,total_returns_30d:50,net_orders_30d:40,freq_per_day:1.33,restock_30d:40,restock_90d:120,restock_180d:240,current_stock:30,stock_gap_90d:90,revenue_30d:8483,return_rate_pct:55.6,total_orders_90d:240,stock_status:'CRITICAL'},
+    {sku:'SC-LACTO-STR-PK25',platforms:'B-Arm Offline',total_orders_30d:89,total_returns_30d:0,net_orders_30d:89,freq_per_day:2.97,restock_30d:89,restock_90d:267,restock_180d:534,current_stock:400,stock_gap_90d:0,revenue_30d:74791,return_rate_pct:0,total_orders_90d:240,stock_status:'OK'},
+    {sku:'B-BT-B2',platforms:'Flipkart',total_orders_30d:127,total_returns_30d:39,net_orders_30d:88,freq_per_day:2.93,restock_30d:88,restock_90d:264,restock_180d:528,current_stock:50,stock_gap_90d:214,revenue_30d:0,return_rate_pct:30.7,total_orders_90d:340,stock_status:'CRITICAL'},
+    {sku:'B-OVU-CASSETTE-PK5',platforms:'Flipkart',total_orders_30d:84,total_returns_30d:21,net_orders_30d:63,freq_per_day:2.1,restock_30d:63,restock_90d:189,restock_180d:378,current_stock:200,stock_gap_90d:0,revenue_30d:0,return_rate_pct:25,total_orders_90d:220,stock_status:'OK'},
+  ];
+}
+
+// ---- KPIs ----
+function renderKPIs() {
+  const total30 = forecastData.reduce((s,r)=>s+r.total_orders_30d,0);
+  const totalRet = forecastData.reduce((s,r)=>s+r.total_returns_30d,0);
+  const totalNet = forecastData.reduce((s,r)=>s+r.net_orders_30d,0);
+  const totalRev = forecastData.reduce((s,r)=>s+(r.revenue_30d||0),0);
+  const retRate = total30>0 ? (totalRet/total30*100).toFixed(1) : 0;
+  const criticalCount = forecastData.filter(r=>r.stock_status==='CRITICAL'||r.stock_status==='OUT_OF_STOCK').length;
+
+  const kpis = [
+    {label:'Total Orders (30D)', value: total30.toLocaleString(), sub:'All platforms combined', color:'#3b82f6'},
+    {label:'Total Returns (30D)', value: totalRet.toLocaleString(), sub:`Return rate: ${retRate}%`, color:'#ff4060'},
+    {label:'Net Orders (30D)', value: totalNet.toLocaleString(), sub:'After returns', color:'#00e5a0'},
+    {label:'Revenue (30D)', value: fmt(totalRev), sub:'Amazon + B-Arm only', color:'#f0a500'},
+    {label:'SKUs Tracked', value: forecastData.length, sub:'Across all platforms', color:'#e05aff'},
+    {label:'Critical Stock', value: criticalCount, sub:'Needs immediate restock', color:'#ff7a30'},
+  ];
+
+  document.getElementById('kpiRow').innerHTML = kpis.map(k=>`
+    <div class="kpi-card">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-value" style="color:${k.color}">${k.value}</div>
+      <div class="kpi-sub">${k.sub}</div>
+    </div>`).join('');
+}
+
+// ---- CHARTS ----
+function renderCharts() {
+  // Sales trend (simulated daily from 30d totals)
+  const days = Array.from({length:30},(_,i)=>{
+    const d = new Date(); d.setDate(d.getDate()-29+i);
+    return d.toLocaleDateString('en',{day:'2-digit',month:'short'});
+  });
+  const amData = days.map((_,i)=> Math.round(forecastData.filter(r=>r.platforms&&r.platforms.includes('Amazon')).reduce((s,r)=>s+r.total_orders_30d,0)/30 * (0.7+Math.random()*0.6)));
+  const fkData = days.map((_,i)=> Math.round(forecastData.filter(r=>r.platforms&&r.platforms.includes('Flipkart')).reduce((s,r)=>s+r.total_orders_30d,0)/30 * (0.7+Math.random()*0.6)));
+  const bData  = days.map((_,i)=> Math.round(forecastData.filter(r=>r.platforms&&(r.platforms.includes('B-Arm'))).reduce((s,r)=>s+r.total_orders_30d,0)/30 * (0.7+Math.random()*0.6)));
+
+  destroyChart('salesChart');
+  charts.sales = new Chart(document.getElementById('salesChart'), {
+    type:'line',
+    data:{labels:days, datasets:[
+      {label:'Amazon',data:amData,borderColor:'#FF9900',backgroundColor:'rgba(255,153,0,.1)',tension:.4,fill:true,pointRadius:0},
+      {label:'Flipkart',data:fkData,borderColor:'#60a5fa',backgroundColor:'rgba(96,165,250,.1)',tension:.4,fill:true,pointRadius:0},
+      {label:'B-Arm',data:bData,borderColor:'#00e5a0',backgroundColor:'rgba(0,229,160,.1)',tension:.4,fill:true,pointRadius:0},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#4a506a',font:{size:10}},grid:{color:'#1e2240'}},
+              y:{ticks:{color:'#4a506a',font:{size:10}},grid:{color:'#1e2240'}}}}
+  });
+
+  // Platform donut
+  const amT = forecastData.filter(r=>r.platforms&&r.platforms.includes('Amazon')).reduce((s,r)=>s+r.total_orders_30d,0);
+  const fkT = forecastData.filter(r=>r.platforms&&r.platforms.includes('Flipkart')).reduce((s,r)=>s+r.total_orders_30d,0);
+  const boT = forecastData.filter(r=>r.platforms&&r.platforms.includes('Online')).reduce((s,r)=>s+r.total_orders_30d,0);
+  const bofT = forecastData.filter(r=>r.platforms&&r.platforms.includes('Offline')).reduce((s,r)=>s+r.total_orders_30d,0);
+
+  destroyChart('platformChart');
+  charts.platform = new Chart(document.getElementById('platformChart'), {
+    type:'doughnut',
+    data:{
+      labels:['Amazon','Flipkart','B-Arm Online','B-Arm Offline'],
+      datasets:[{data:[amT,fkT,boT,bofT],backgroundColor:['#FF9900','#2874F0','#00e5a0','#a78bfa'],borderWidth:0,hoverOffset:4}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,cutout:'70%',
+      plugins:{legend:{position:'bottom',labels:{color:'#4a506a',font:{size:11},padding:8}}}}
+  });
+
+  // Return rate bar
+  destroyChart('returnChart');
+  charts.ret = new Chart(document.getElementById('returnChart'), {
+    type:'bar',
+    data:{
+      labels:['Amazon','Flipkart','B-Arm Online'],
+      datasets:[{
+        data:[
+          forecastData.filter(r=>r.platforms&&r.platforms.includes('Amazon')&&r.total_orders_30d>0).reduce((s,r,_,a)=>s+r.return_rate_pct/a.length,0).toFixed(1),
+          forecastData.filter(r=>r.platforms&&r.platforms.includes('Flipkart')&&r.total_orders_30d>0).reduce((s,r,_,a)=>s+r.return_rate_pct/a.length,0).toFixed(1),
+          forecastData.filter(r=>r.platforms&&r.platforms.includes('Online')&&r.total_orders_30d>0).reduce((s,r,_,a)=>s+r.return_rate_pct/a.length,0).toFixed(1),
+        ],
+        backgroundColor:['rgba(255,153,0,.7)','rgba(96,165,250,.7)','rgba(0,229,160,.7)'],
+        borderRadius:4,
+      }]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#4a506a'},grid:{display:false}},
+              y:{ticks:{color:'#4a506a',font:{size:10},callback:v=>v+'%'},grid:{color:'#1e2240'}}}}
+  });
+
+  // Stock status donut
+  const ss = {OK:0,LOW:0,CRITICAL:0,OUT_OF_STOCK:0};
+  forecastData.forEach(r=>{ if(ss[r.stock_status]!==undefined) ss[r.stock_status]++; else ss.OK++; });
+  destroyChart('stockStatusChart');
+  charts.stock = new Chart(document.getElementById('stockStatusChart'), {
+    type:'doughnut',
+    data:{
+      labels:['OK','Low','Critical','Out of Stock'],
+      datasets:[{data:[ss.OK,ss.LOW,ss.CRITICAL,ss.OUT_OF_STOCK],
+        backgroundColor:['#00e5a0','#ff7a30','#ff4060','#3b0020'],borderWidth:0}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',
+      plugins:{legend:{position:'bottom',labels:{color:'#4a506a',font:{size:11},padding:6}}}}
+  });
+
+  // Top SKU list
+  const top10 = [...forecastData].sort((a,b)=>b.total_orders_30d-a.total_orders_30d).slice(0,10);
+  const max = top10[0]?.total_orders_30d||1;
+  document.getElementById('topSkuList').innerHTML = top10.map(r=>`
+    <div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.sku}</div>
+        <div style="height:3px;background:var(--border);border-radius:2px;margin-top:4px;">
+          <div style="height:100%;width:${Math.round(r.total_orders_30d/max*100)}%;background:var(--accent);border-radius:2px;"></div>
+        </div>
+      </div>
+      <div style="font-family:'Space Mono',monospace;font-size:12px;color:var(--text);flex-shrink:0;">${r.total_orders_30d}</div>
+    </div>`).join('');
+
+  renderStockCharts();
+}
+
+function destroyChart(id) {
+  if(charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+function renderStockCharts() {
+  const top20 = [...forecastData].filter(r=>r.freq_per_day>0).sort((a,b)=>b.total_orders_30d-a.total_orders_30d).slice(0,20);
+  const labels = top20.map(r=>r.sku.length>12?r.sku.slice(0,12)+'…':r.sku);
+
+  // Days of supply
+  const dos = top20.map(r=> r.freq_per_day>0 ? Math.round(r.current_stock/r.freq_per_day) : 999);
+  const dosColors = dos.map(d=> d>=90?'#00e5a0': d>=30?'#f0a500': d>=10?'#ff7a30':'#ff4060');
+
+  destroyChart('coverageChart');
+  charts.coverage = new Chart(document.getElementById('coverageChart'), {
+    type:'bar',
+    data:{labels, datasets:[{
+      label:'Days of Supply',data:dos.map(d=>Math.min(d,365)),
+      backgroundColor:dosColors,borderRadius:3,
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw} days`}}},
+      scales:{x:{ticks:{color:'#4a506a',font:{size:9}},grid:{color:'#1e2240'}},
+              y:{ticks:{color:'#e8eaf0',font:{size:9,family:"'Space Mono',monospace"}},grid:{display:false}}}}
+  });
+
+  // Gap chart
+  destroyChart('gapChart');
+  charts.gap = new Chart(document.getElementById('gapChart'), {
+    type:'bar',
+    data:{labels, datasets:[
+      {label:'Current Stock',data:top20.map(r=>r.current_stock),backgroundColor:'rgba(0,229,160,.6)',borderRadius:3},
+      {label:'Need 90D',data:top20.map(r=>r.restock_90d),backgroundColor:'rgba(240,165,0,.4)',borderRadius:3},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+      plugins:{legend:{position:'top',labels:{color:'#4a506a',font:{size:10}}}},
+      scales:{x:{stacked:false,ticks:{color:'#4a506a',font:{size:9}},grid:{color:'#1e2240'}},
+              y:{ticks:{color:'#e8eaf0',font:{size:9,family:"'Space Mono',monospace"}},grid:{display:false}}}}
+  });
+}
+
+// ---- FORECAST TABLE ----
+let fFilter = 'all', sortCol = 'total_orders_30d', sortDir = -1;
+
+function renderForecastTable() {
+  let data = [...forecastData];
+  const q = (document.getElementById('fSearch')?.value||'').toLowerCase();
+  if(q) data = data.filter(r=>(r.sku||'').toLowerCase().includes(q));
+  if(fFilter==='critical') data = data.filter(r=>r.stock_status==='CRITICAL');
+  if(fFilter==='low') data = data.filter(r=>r.stock_status==='LOW');
+  if(fFilter==='ok') data = data.filter(r=>r.stock_status==='OK');
+  if(fFilter==='oos') data = data.filter(r=>r.stock_status==='OUT_OF_STOCK');
+  data.sort((a,b)=> (a[sortCol]>b[sortCol]?1:-1)*sortDir);
+
+  document.getElementById('fCount').textContent = data.length + ' SKUs';
+  document.getElementById('forecastTbody').innerHTML = data.map(r=>`
+    <tr>
+      <td style="font-family:'Space Mono',monospace;font-size:11px;color:var(--accent);font-weight:700;">${r.sku}</td>
+      <td>${platformBadges(r.platforms)}</td>
+      <td style="color:#60a5fa;font-weight:700;">${r.total_orders_30d}</td>
+      <td style="color:#f87171;">${r.total_returns_30d}</td>
+      <td>${retColor(r.return_rate_pct)}</td>
+      <td style="color:#34d399;font-weight:700;">${r.net_orders_30d}</td>
+      <td style="color:var(--muted);">${parseFloat(r.freq_per_day||0).toFixed(2)}</td>
+      <td><span style="background:rgba(240,165,0,.12);color:var(--accent);padding:2px 8px;border-radius:4px;font-weight:700;">${r.restock_30d}</span></td>
+      <td><span style="background:rgba(224,90,255,.12);color:var(--accent2);padding:2px 8px;border-radius:4px;font-weight:700;">${r.restock_90d}</span></td>
+      <td style="color:var(--muted);">${r.restock_180d}</td>
+      <td style="font-weight:700;">${r.current_stock}</td>
+      <td style="color:${r.stock_gap_90d>0?'#ff4060':'#00e5a0'};font-weight:700;">${r.stock_gap_90d>0?'+'+r.stock_gap_90d:0}</td>
+      <td style="color:#fbbf24;">${r.revenue_30d>0?fmt(r.revenue_30d):'—'}</td>
+      <td>${statusBadge(r.stock_status)}</td>
+    </tr>`).join('');
+}
+
+function retColor(v) {
+  const c = v>=40?'#ff4060':v>=25?'#ff7a30':v>=15?'#f0a500':'#00e5a0';
+  return `<span style="color:${c};font-weight:700;">${v}%</span>`;
+}
+
+function filterForecast() { renderForecastTable(); }
+function setFFilter(f, btn) {
+  fFilter=f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderForecastTable();
+}
+function sortTable(col) {
+  if(sortCol===col) sortDir*=-1; else {sortCol=col;sortDir=-1;}
+  renderForecastTable();
+}
+
+// ---- STOCK TABLE ----
+function renderStockTable() {
+  let data = [...forecastData].filter(r=>r.freq_per_day>0);
+  const q = (document.getElementById('sSearch')?.value||'').toLowerCase();
+  if(q) data = data.filter(r=>(r.sku||'').toLowerCase().includes(q));
+
+  document.getElementById('stockTbody').innerHTML = data.map(r=>{
+    const dos = r.freq_per_day>0 ? Math.round(r.current_stock/r.freq_per_day) : 999;
+    const pct = Math.min(100, r.current_stock/(r.restock_90d||1)*100);
+    const barColor = pct>=80?'#00e5a0':pct>=40?'#f0a500':pct>=20?'#ff7a30':'#ff4060';
+    return `<tr>
+      <td style="font-family:'Space Mono',monospace;font-size:11px;color:var(--accent);font-weight:700;">${r.sku}</td>
+      <td>${parseFloat(r.freq_per_day||0).toFixed(2)}</td>
+      <td style="font-weight:700;">${r.current_stock}</td>
+      <td>
+        <div class="stock-bar-wrap">
+          <div class="stock-bar">
+            <div class="stock-bar-fill" style="width:${pct}%;background:${barColor};"></div>
+          </div>
+        </div>
+        <span style="font-size:10px;color:var(--muted);margin-left:6px;">${Math.round(pct)}%</span>
+      </td>
+      <td style="color:${dos>=90?'#00e5a0':dos>=30?'#f0a500':'#ff4060'};font-weight:700;">${dos===999?'∞':dos+'d'}</td>
+      <td>${r.restock_30d}</td>
+      <td style="font-weight:700;">${r.restock_90d}</td>
+      <td style="color:${r.stock_gap_90d>0?'#ff4060':'#00e5a0'};font-weight:700;">${r.stock_gap_90d>0?r.stock_gap_90d+' needed':'✓ Covered'}</td>
+      <td>${statusBadge(r.stock_status)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function filterStock() { renderStockTable(); }
+
+// ---- ALERTS ----
+function renderAlerts() {
+  const critical = forecastData.filter(r=>r.stock_status==='CRITICAL'||r.stock_status==='OUT_OF_STOCK');
+  const highRet = forecastData.filter(r=>r.return_rate_pct>=30 && r.total_orders_30d>=10);
+  const restock = forecastData.filter(r=>r.stock_gap_90d>0).sort((a,b)=>b.stock_gap_90d-a.stock_gap_90d);
+
+  document.getElementById('criticalAlerts').innerHTML = critical.length===0
+    ? '<div class="loading-overlay" style="color:var(--green);">✓ No critical alerts</div>'
+    : critical.map(r=>`
+      <div class="alert-row">
+        <div><div class="alert-sku">${r.sku}</div><div class="alert-prod">${platformBadges(r.platforms)} · Stock: ${r.current_stock} · Need 30D: ${r.restock_30d}</div></div>
+        <div>${statusBadge(r.stock_status)}</div>
+      </div>`).join('');
+
+  document.getElementById('returnAlerts').innerHTML = highRet.length===0
+    ? '<div class="loading-overlay" style="color:var(--green);">✓ No high return rate SKUs</div>'
+    : highRet.map(r=>`
+      <div class="alert-row">
+        <div><div class="alert-sku">${r.sku}</div><div class="alert-prod">${r.total_returns_30d} returns / ${r.total_orders_30d} orders</div></div>
+        <div>${retColor(r.return_rate_pct)}</div>
+      </div>`).join('');
+
+  document.getElementById('restockAlerts').innerHTML = restock.length===0
+    ? '<div class="loading-overlay" style="color:var(--green);">✓ All stock levels adequate</div>'
+    : `<table><thead><tr>
+        <th>SKU</th><th>Platforms</th><th>Current Stock</th><th>Need 90D</th><th>Gap</th><th>Status</th>
+       </tr></thead><tbody>` +
+      restock.slice(0,30).map(r=>`<tr>
+        <td style="font-family:'Space Mono',monospace;font-size:11px;color:var(--accent);font-weight:700;">${r.sku}</td>
+        <td>${platformBadges(r.platforms)}</td>
+        <td style="font-weight:700;">${r.current_stock}</td>
+        <td>${r.restock_90d}</td>
+        <td style="color:#ff4060;font-weight:700;">${r.stock_gap_90d}</td>
+        <td>${statusBadge(r.stock_status)}</td>
+      </tr>`).join('') + '</tbody></table>';
+}
+
+// ---- PAGE NAV ----
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+// ---- UPLOAD ----
+const COLUMN_MAPS = {
+  am_orders: row => ({
+    amazon_order_id: row['amazon-order-id'],
+    merchant_order_id: row['merchant-order-id'] || null,
+    purchase_date: parseDate(row['purchase-date']),
+    order_status: row['order-status'],
+    fulfillment_channel: row['fulfillment-channel'] || null,
+    product_name: (row['product-name']||'').slice(0,200),
+    sku: (row['sku']||'').trim(),
+    id_1: row['asin'] || null,
+    item_status: row['item-status'] || null,
+    quantity: parseInt(row['quantity'])||0,
+    currency: row['currency'] || null,
+    item_price: parseFloat(row['item-price'])||0,
+    ship_city: row['ship-city'] || null,
+    ship_state: row['ship-state'] || null,
+  }),
+  am_returns: row => ({
+    order_id: row['Order ID'] || null,
+    order_date: parseDate(row['Order date']),
+    return_update_date: parseDate(row['Return request date']),
+    return_request_status: row['Return request status'] || null,
+    asin: row['ASIN'] || null,
+    merchant_sku: (row['Merchant SKU']||'').trim(),
+    item_name: (row['Item Name']||'').slice(0,200),
+    return_quantity: parseInt(row['Return quantity'])||0,
+    return_reason: row['Return reason'] || null,
+    resolution: row['Resolution'] || null,
+    order_amount: parseFloat(row['Order Amount'])||0,
+    order_quantity: parseInt(row['Order quantity'])||0,
+  }),
+  am_fba_returns: row => ({
+    return_date: parseDate(row['return-date']),
+    order_id: row['order-id'] || null,
+    sku: (row['sku']||'').trim(),
+    product_name: (row['product-name']||'').slice(0,200),
+    quantity: parseInt(row['quantity'])||0,
+    disposition: row['detailed-disposition'] || null,
+    reason: row['reason'] || null,
+  }),
+  fk_orders: row => ({
+    order_item_id: row['order_item_id'] || null,
+    order_id: row['order_id'] || null,
+    order_date: parseDate(row['order_date']),
+    order_approval_date: parseDate(row['order_approval_date']),
+    order_item_status: row['order_item_status'] || null,
+    sku: (row['sku']||'').replace(/^SKU:/,'').trim(),
+    fsn: row['fsn'] || null,
+    product_title: (row['product_title']||'').slice(0,200),
+    quantity: parseInt(row['quantity'])||0,
+    fulfilment_type: row['fulfilment_type'] || null,
+    cancellation_reason: row['cancellation_reason'] || null,
+  }),
+  fk_returns: row => ({
+    order_id: row['Order ID'] || null,
+    order_item_id: row['Order Item ID'] || null,
+    sku: (row['SKU']||'').trim(),
+    product: (row['Product']||'').slice(0,200),
+    total_price: parseFloat(row['Total Price'])||0,
+    quantity: parseInt(row['Quantity'])||0,
+    return_requested_date: parseDate(row['Return Requested Date']),
+    return_status: row['Return Status'] || null,
+    return_type: row['Return Type'] || null,
+    return_reason: row['Return Reason'] || null,
+  }),
+  barm_online_orders: row => ({
+    order_number: row['Order Number'] || null,
+    invoice_number: row['Invoice Number'] || row['Invoice Number '] || null,
+    order_status: row['Order Status'] || null,
+    order_date: parseDate(row['Order Date']),
+    sku: (row['SKU']||'').trim(),
+    item_name: (row['Item Name']||'').slice(0,200),
+    quantity: parseInt(row['Quantity'])||0,
+    order_total: parseFloat(row['Order Total Amount']||row['Order Line Total'])||0,
+    payment_method: row['Payment Method Title'] || null,
+  }),
+  barm_offline_orders: row => ({
+    sale_date: parseDate(row['Date']),
+    product: (row['Product']||'').slice(0,200),
+    sku: (row['SKU ID']||'').trim(),
+    quantity: parseInt(row['Quantity'])||0,
+    price_per_unit: parseFloat(row['Price per Product'])||0,
+    total_price: parseFloat(row['Total Price'])||0,
+  }),
+  current_stock: row => ({
+    product_name: (row['Product name']||'').trim(),
+    sku: (row['SKU ID']||row['sku']||null),
+    inbound_shipped: parseInt(row['Inbound shipped'])||0,
+    unfulfillable: parseInt(row['unfulfillable'])||0,
+    final_stock_warehouse: parseInt(row['Final Stock in Warehouse'])||0,
+    qc_godown_stock: parseInt(row['QC Godown stock sheet'])||0,
+    packing_godown_stock: parseInt(row['Packing godown stock sheet'])||0,
+  }),
+  meesho_returns: row => ({
+    sku: (row['SKU']||'').trim(),
+    product_name: (row['Product Name']||'').slice(0,200),
+    qty: parseInt(row['Qty'])||0,
+    order_number: row['Order Number'] || null,
+    suborder_number: row['Suborder Number'] || null,
+    dispatch_date: parseDate(row['Dispatch Date']),
+    delivered_date: parseDate(row['Delivered Date']),
+    return_created_date: parseDate(row['Return Created Date']),
+    return_type: row['Type of Return'] || null,
+    return_sub_type: row['Sub Type'] || null,
+    return_reason: row['Return Reason'] || null,
+    detailed_return_reason: (row['Detailed Return Reason']||'').slice(0,200),
+    courier_partner: row['Courier Partner'] || null,
+  }),
+};
+
+function parseDate(s) {
+  if (!s||s.trim()===''||s.trim()==='-') return null;
+  s = s.trim();
+  const fmts = [
+    [/^(\d{4})-(\d{2})-(\d{2})/, m=>`${m[1]}-${m[2]}-${m[3]}`],
+    [/^(\d{2})-(\d{2})-(\d{4})/, m=>`${m[3]}-${m[2]}-${m[1]}`],
+    [/^(\d{2})\/(\d{2})\/(\d{4})/, m=>`${m[3]}-${m[2]}-${m[1]}`],
+    [/^(\d{2})-([A-Za-z]{3})-(\d{2,4})/, m=>{
+      const months={jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'};
+      const yr = m[3].length===2?'20'+m[3]:m[3];
+      return `${yr}-${months[m[2].toLowerCase()]||'01'}-${m[1].padStart(2,'0')}`;
+    }],
+  ];
+  for (const [re, fn] of fmts) { const m = s.match(re); if(m) return fn(m); }
+  return s.split('T')[0]||null;
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  const headers = lines[0].split(',').map(h=>h.replace(/^"|"$/g,'').trim());
+  return lines.slice(1).filter(l=>l.trim()).map(line=>{
+    const vals=[], rx=/("([^"]*)"|([^,]*))(,|$)/g;
+    let m; while((m=rx.exec(line))!==null) vals.push((m[2]!==undefined?m[2]:m[3]||'').trim());
+    return Object.fromEntries(headers.map((h,i)=>[h,vals[i]||'']));
+  });
+}
+
+async function handleUpload(input, table) {
+  const file = input.files[0];
+  if(!file) return;
+  const statusEl = document.getElementById('st-'+table);
+  statusEl.innerHTML = '<span class="status-loading">⟳ Reading file…</span>';
+
+  const text = await file.text();
+  const rows = parseCSV(text);
+  const mapper = COLUMN_MAPS[table];
+  if(!mapper) { statusEl.innerHTML = '<span class="status-error">✗ Unknown table</span>'; return; }
+
+  const mapped = rows.map(mapper).filter(r=>{
+    const vals = Object.values(r);
+    return vals.some(v=>v!==null&&v!==''&&v!==0);
+  });
+
+  statusEl.innerHTML = `<span class="status-loading">⟳ Uploading ${mapped.length} rows…</span>`;
+
+  let inserted = 0;
+  const CHUNK = 200;
+  try {
+    for(let i=0;i<mapped.length;i+=CHUNK) {
+      const batch = mapped.slice(i,i+CHUNK);
+      await sbPost(table, batch);
+      inserted += batch.length;
+      statusEl.innerHTML = `<span class="status-loading">⟳ ${inserted}/${mapped.length}</span>`;
+    }
+    statusEl.innerHTML = `<span class="status-success">✓ ${inserted} rows uploaded</span>`;
+    setTimeout(()=>loadAllData(), 1500);
+  } catch(e) {
+    statusEl.innerHTML = `<span class="status-error">✗ ${e.message.slice(0,80)}</span>`;
+  }
+}
+
+// ---- DRAG DROP ----
+document.querySelectorAll('.drop-zone').forEach(zone=>{
+  zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('dragover');});
+  zone.addEventListener('dragleave',()=>zone.classList.remove('dragover'));
+  zone.addEventListener('drop',e=>{
+    e.preventDefault();zone.classList.remove('dragover');
+    const input = zone.querySelector('input[type=file]');
+    if(input&&e.dataTransfer.files[0]){
+      const dt = new DataTransfer();dt.items.add(e.dataTransfer.files[0]);
+      input.files=dt.files;input.dispatchEvent(new Event('change'));
+    }
+  });
+});
+
+// ---- COPY CODE ----
+function copyCode(btn) {
+  const pre = btn.parentElement;
+  const text = pre.textContent.replace('Copy','').trim();
+  navigator.clipboard.writeText(text);
+  btn.textContent='✓ Copied!';
+  setTimeout(()=>btn.textContent='Copy',2000);
+}
+
+// ---- INIT ----
+loadAllData();
+</script>
+</body>
+</html>
