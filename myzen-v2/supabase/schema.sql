@@ -104,17 +104,23 @@ create table if not exists daily_stats (
 );
 
 -- --------------------------------------- screenshots (feature OFF by default)
--- Table exists so the pipeline can be switched on later per team. Nothing writes to it while
--- ENABLE_SCREENSHOTS=false (agent) and screenshots_enabled=false (system_config).
+-- The agent syncs METADATA ONLY (when, which app, local file name). Image upload to a private Storage
+-- bucket is not implemented, so storage_path stays null and uploaded=false. agent_sync ignores screenshot
+-- rows unless system_config.screenshots_enabled = 'true'. `blurred` is false because no blurring exists yet.
 create table if not exists screenshots (
   id             uuid primary key default gen_random_uuid(),
   employee_id    uuid not null references employees(id) on delete cascade,
-  storage_path   text not null,
+  storage_path   text,
   captured_at    timestamptz not null,
   app_name       text,
-  blurred        boolean not null default true,
+  blurred        boolean not null default false,
   created_at     timestamptz not null default now()
 );
+alter table screenshots alter column storage_path drop not null;
+alter table screenshots alter column blurred set default false;
+alter table screenshots add column if not exists local_file text;
+alter table screenshots add column if not exists uploaded boolean not null default false;
+create index if not exists screenshots_employee_time on screenshots (employee_id, captured_at desc);
 
 create table if not exists system_config (
   config_key   text primary key,
@@ -272,7 +278,8 @@ begin
   if jsonb_array_length(coalesce(p_payload->'sessions', '[]')) > 1000
      or jsonb_array_length(coalesce(p_payload->'punches', '[]')) > 200
      or jsonb_array_length(coalesce(p_payload->'breaks', '[]')) > 200
-     or jsonb_array_length(coalesce(p_payload->'timesheet', '[]')) > 200 then
+     or jsonb_array_length(coalesce(p_payload->'timesheet', '[]')) > 200
+     or jsonb_array_length(coalesce(p_payload->'screenshots', '[]')) > 200 then
     return jsonb_build_object('error', 'payload_too_large');
   end if;
 
@@ -297,6 +304,13 @@ begin
            x->>'category', coalesce((x->>'active')::boolean, true), (x->>'duration_ms')::bigint
     from jsonb_array_elements(coalesce(p_payload->'sessions', '[]')) x
   on conflict (id) do nothing;
+
+  if coalesce((select config_value from system_config where config_key = 'screenshots_enabled'), 'false') = 'true' then
+    insert into screenshots (id, employee_id, captured_at, app_name, local_file, storage_path, uploaded, blurred)
+      select (x->>'id')::uuid, emp, (x->>'time')::timestamptz, left(x->>'app', 200), left(x->>'file', 200), null, false, false
+      from jsonb_array_elements(coalesce(p_payload->'screenshots', '[]')) x
+    on conflict (id) do nothing;
+  end if;
 
   s := p_payload->'stats';
   if s is not null and s ? 'date' then

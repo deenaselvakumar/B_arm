@@ -33,7 +33,7 @@ function showWindow() {
 
 function createWindow(port) {
   win = new BrowserWindow({
-    width: 460, height: 760, minWidth: 400, title: 'MyZen Agent', autoHideMenuBar: true,
+    width: 400, height: 680, minWidth: 360, minHeight: 560, title: 'MyZenV2', autoHideMenuBar: true,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   })
   win.loadURL(`http://127.0.0.1:${port}/ui`)

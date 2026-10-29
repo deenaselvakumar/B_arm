@@ -18,7 +18,9 @@ function createCore({ dir, settings, source, now = () => Date.now() }) {
     getIdleThreshold: () => (live() && Number(store.session?.config?.idle_threshold_seconds)) || settings.idleThresholdSeconds,
   })
   const screenshots = new ScreenshotManager({
-    dir, settings, now,
+    dir, settings, now, store,
+    capturer: source.captureScreen ? () => source.captureScreen() : undefined,
+    getApp: () => monitor.currentActivity()?.app ?? null,
     getEmployee: () => store.employee,
     getServerConfig: () => (live() ? store.session?.config ?? null : null),
     isTracking: () => store.isTracking(),
@@ -39,10 +41,11 @@ function createCore({ dir, settings, source, now = () => Date.now() }) {
     syncing = (async () => {
       try {
         const p = store.pending()
-        const batch = { ...p, sessions: p.sessions.slice(0, 500) }
+        const batch = { ...p, sessions: p.sessions.slice(0, 500), screenshots: p.screenshots.slice(0, 100) }
         const payload = {
           status: statusOverride || statusNow(),
           machine: settings.machine,
+        version: require('../package.json').version,
           punches: batch.punches.map((x) => ({ id: x.id, type: x.type, time: iso(x.time) })),
           breaks: batch.breaks.map((x) => ({ id: x.id, start: iso(x.start), end: iso(x.end), minutes: x.minutes, type: x.type })),
           timesheet: batch.timesheet.map((x) => ({ id: x.id, date: x.date, start: x.start, end: x.end, hours: x.hours, description: x.description })),
@@ -50,6 +53,7 @@ function createCore({ dir, settings, source, now = () => Date.now() }) {
             id: x.id, start: iso(x.startTime), end: iso(x.endTime), app: x.app, url: x.url,
             category: x.category, active: x.isActive, duration_ms: Math.round(x.durationMs),
           })),
+          screenshots: batch.screenshots.map((x) => ({ id: x.id, time: iso(x.time), app: x.app, file: x.file })),
           stats: store.employee ? monitor.getStats() : undefined,
         }
         const { error } = await cloud.sync(store.session.token, payload)
@@ -129,19 +133,24 @@ function createCore({ dir, settings, source, now = () => Date.now() }) {
     logTime: (body) => store.logTime(body),
     history: (days) => store.history(days),
     syncNow,
+    logs: (day) => { if (!store.employee) throw new RuleError('Please log in first.', 401); return monitor.getLogs(day) },
 
     state() {
       const s = store.state()
       return {
         mode: live() ? 'supabase' : 'demo',
+        machine: settings.machine,
+        idleThresholdSeconds: monitor.getIdleThreshold(),
         employee: store.employee,
         ...s,
         tracking: store.isTracking(),
         stats: store.employee ? monitor.getStats() : null,
+        totals: store.employee ? store.dayTotals() : { workedMs: 0, breakMs: 0 },
+        logCount: store.employee ? monitor.getLogs().count : 0,
         current: store.isTracking() ? monitor.currentActivity() : null,
         pending: store.pendingCount(),
         sync: { ...lastSync, expired: !!store.session?.expired },
-        screenshots: screenshots.policy(),
+        screenshots: screenshots.summary(),
         serverTime: now(),
       }
     },

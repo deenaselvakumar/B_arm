@@ -10,7 +10,7 @@ class RuleError extends Error {
   }
 }
 
-const EMPTY = () => ({ session: null, punches: [], breaks: [], timesheet: [], sessions: [] })
+const EMPTY = () => ({ session: null, punches: [], breaks: [], timesheet: [], sessions: [], screenshots: [] })
 const RETAIN_MS = 14 * 86400000
 
 // Local source of truth for attendance + activity. Every row carries `synced`; the cloud loop pushes the
@@ -27,6 +27,7 @@ class Store extends EventEmitter {
     } catch {}
     const cutoff = this.now() - RETAIN_MS
     this.data.sessions = this.data.sessions.filter((s) => !s.synced || s.startTime >= cutoff)
+    this.data.screenshots = this.data.screenshots.filter((s) => !s.synced || s.time >= cutoff)
   }
 
   save() {
@@ -155,16 +156,22 @@ class Store extends EventEmitter {
     this.save()
   }
 
+  addScreenshot(row) {
+    this.data.screenshots.push({ ...row, synced: false })
+    this.save()
+  }
+
   pending() {
     const u = (a) => a.filter((x) => !x.synced)
-    return { punches: u(this.data.punches), breaks: u(this.data.breaks), timesheet: u(this.data.timesheet), sessions: u(this.data.sessions) }
+    return { punches: u(this.data.punches), breaks: u(this.data.breaks), timesheet: u(this.data.timesheet), sessions: u(this.data.sessions), screenshots: u(this.data.screenshots) }
   }
   pendingCount() {
     const p = this.pending()
-    return p.punches.length + p.breaks.length + p.timesheet.length + p.sessions.length
+    return p.punches.length + p.breaks.length + p.timesheet.length + p.sessions.length + p.screenshots.length
   }
   markSynced(p) {
-    for (const k of ['punches', 'breaks', 'timesheet', 'sessions']) {
+    for (const k of ['punches', 'breaks', 'timesheet', 'sessions', 'screenshots']) {
+      if (!p[k]) continue
       const ids = new Set(p[k].map((x) => x.id))
       for (const row of this.data[k]) if (ids.has(row.id)) row.synced = true
     }
@@ -185,6 +192,24 @@ class Store extends EventEmitter {
       if (!ids.has(t.id)) this.data.timesheet.push({ id: t.id, date: t.date, start: t.start?.slice(0, 5) ?? null, end: t.end?.slice(0, 5) ?? null, hours: Number(t.hours), description: t.description, approved: !!t.approved, synced: true })
     this.save()
     this.emit('change')
+  }
+
+  // Exact milliseconds for one day, for the live counters. Working time excludes breaks.
+  dayTotals(day = this.dayOf(this.now())) {
+    const nowMs = this.now()
+    let punched = 0, inAt = null, inDay = null
+    for (const p of this.data.punches) {
+      if (p.type === 'in' && inAt === null) { inAt = p.time; inDay = this.dayOf(p.time) }
+      else if (p.type === 'out' && inAt !== null) {
+        if (inDay === day) punched += p.time - inAt
+        inAt = null
+      }
+    }
+    if (inAt !== null && inDay === day) punched += nowMs - inAt
+    const breakMs = this.data.breaks
+      .filter((b) => this.dayOf(b.start) === day)
+      .reduce((a, b) => a + ((b.end ?? nowMs) - b.start), 0)
+    return { workedMs: Math.max(0, punched - breakMs), breakMs }
   }
 
   // Per-day attendance summary shown in the app's timesheet history.

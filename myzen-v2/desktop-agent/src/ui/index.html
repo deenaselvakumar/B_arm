@@ -3,117 +3,176 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MyZen Agent</title>
+<title>MyZenV2</title>
 <style>
-  :root { --teal:#0d9488; --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --bg:#f8fafc; --red:#dc2626; --amber:#d97706; }
-  * { box-sizing: border-box; }
-  body { margin:0; font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:var(--ink); background:var(--bg); }
-  main { max-width:440px; margin:0 auto; padding:16px; }
-  h1 { font-size:18px; margin:0; } h2 { font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--mute); margin:0 0 8px; }
-  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
-  .row { display:flex; gap:8px; align-items:center; } .row > * { flex:1; } .between { justify-content:space-between; }
+  :root { --bg:#1c1c1e; --panel:#26262a; --line:#38383d; --ink:#f4f4f5; --mute:#a1a1aa; --teal:#14b8a6; --coral:#f2546d; --gold:#b8860b; --blue:#60a5fa; --amber:#f59e0b; }
+  * { box-sizing:border-box; }
+  html, body { height:100%; margin:0; }
+  body { font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:var(--ink); background:var(--bg); display:flex; flex-direction:column; user-select:none; }
+  header { background:#f4f4f5; color:#52525b; height:54px; display:flex; align-items:center; justify-content:space-between; padding:0 14px; flex:none; }
+  header h1 { margin:0; font-size:17px; font-weight:600; letter-spacing:.02em; }
+  .rec { width:14px; height:14px; border-radius:50%; background:#a1a1aa; border:2px solid #fff; box-shadow:0 0 0 1px #d4d4d8; }
+  .rec.on { background:#ef4444; box-shadow:0 0 0 1px #ef4444; animation:pulse 1.6s infinite; }
+  .rec.pause { background:var(--amber); box-shadow:0 0 0 1px var(--amber); }
+  @keyframes pulse { 50% { opacity:.4; } }
+  .icons { display:flex; gap:6px; } .iconbtn { background:none; border:0; color:#71717a; padding:4px; border-radius:6px; cursor:pointer; line-height:0; }
+  .iconbtn:hover { background:#e4e4e7; } .iconbtn svg { width:22px; height:22px; }
+  #msg { flex:none; } .msg { margin:8px 12px 0; padding:8px 10px; border-radius:8px; font-size:12.5px; }
+  .msg.err { background:#4c1d24; color:#fecaca; } .msg.ok { background:#12372f; color:#99f6e4; } .msg.warn { background:#46330c; color:#fde68a; }
+  main { flex:1; overflow:auto; padding:14px 16px; display:flex; flex-direction:column; align-items:center; }
   .hidden { display:none !important; }
-  label { display:block; font-size:12px; color:var(--mute); margin:8px 0 3px; }
-  input, textarea { width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font:inherit; }
-  button { padding:10px 12px; border:0; border-radius:8px; background:var(--teal); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
-  button.alt { background:#fff; color:var(--ink); border:1px solid var(--line); }
-  button.red { background:var(--red); } button.amber { background:var(--amber); }
-  button:disabled { opacity:.45; cursor:not-allowed; }
-  .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:600; }
-  .online { background:#ccfbf1; color:#115e59; } .away { background:#fef3c7; color:#92400e; } .offline { background:#e2e8f0; color:#475569; }
-  .mode { font-size:11px; color:var(--mute); }
-  .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
-  .stat b { display:block; font-size:18px; } .stat span { font-size:11px; color:var(--mute); }
-  .msg { padding:8px 10px; border-radius:8px; margin-bottom:10px; font-size:13px; }
-  .msg.err { background:#fee2e2; color:#991b1b; } .msg.ok { background:#dcfce7; color:#166534; } .msg.warn { background:#fef3c7; color:#92400e; }
-  table { width:100%; border-collapse:collapse; font-size:12px; } th, td { text-align:left; padding:5px 4px; border-bottom:1px solid var(--line); }
-  th { color:var(--mute); font-weight:600; }
-  .small { font-size:12px; color:var(--mute); }
+  .brand { display:flex; align-items:center; gap:8px; color:var(--mute); font-size:12px; letter-spacing:.12em; text-transform:uppercase; margin-top:6px; }
+  .logo { width:16px; height:16px; }
+  .timer { font-size:44px; font-weight:600; letter-spacing:.01em; margin:6px 0 2px; font-variant-numeric:tabular-nums; }
+  .status { font-size:12.5px; color:var(--mute); margin-bottom:16px; display:flex; align-items:center; gap:6px; }
+  .dot { width:8px; height:8px; border-radius:50%; background:#71717a; } .dot.on { background:#ef4444; } .dot.pause { background:var(--amber); }
+  .btn { border:0; border-radius:6px; font:inherit; font-weight:600; letter-spacing:.06em; cursor:pointer; color:#fff; text-transform:uppercase; }
+  .btn:disabled { opacity:.4; cursor:not-allowed; }
+  .punch { width:244px; height:68px; font-size:24px; background:var(--teal); } .punch.out { background:var(--coral); }
+  .small-btn { width:166px; height:40px; background:#000; border:1px solid var(--line); display:flex; align-items:center; justify-content:center; gap:8px; font-size:14px; margin-top:14px; }
+  .small-btn svg { width:16px; height:16px; }
+  .breaks { margin:16px 0 14px; font-size:14px; }
+  .chips { display:flex; gap:8px; width:100%; max-width:320px; margin-bottom:auto; }
+  .chip { flex:1; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:8px 6px; text-align:center; color:var(--ink); cursor:default; font:inherit; }
+  button.chip { cursor:pointer; } button.chip:hover { border-color:var(--teal); }
+  .chip b { display:block; font-size:18px; } .chip span { font-size:11px; color:var(--mute); }
+  .signout { width:166px; height:46px; background:var(--gold); margin:18px 0 10px; font-size:15px; }
+  footer { flex:none; display:flex; align-items:center; justify-content:space-between; padding:6px 12px 10px; color:var(--mute); font-size:11.5px; }
+  footer .iconbtn { color:#a1a1aa; position:relative; } footer .iconbtn:hover { background:#2f2f34; }
+  .badge { position:absolute; top:-4px; right:-6px; background:var(--teal); color:#04201c; font-size:10px; font-weight:700; min-width:16px; height:16px; line-height:16px; border-radius:8px; text-align:center; padding:0 3px; }
+  .foot-mid { text-align:center; flex:1; }
+  /* sub-views */
+  .view { width:100%; max-width:360px; align-self:stretch; }
+  .view h2 { font-size:15px; margin:0 0 10px; display:flex; align-items:center; gap:8px; }
+  .back { background:none; border:0; color:var(--teal); font:inherit; cursor:pointer; padding:0; }
+  label { display:block; font-size:12px; color:var(--mute); margin:10px 0 3px; }
+  input, textarea { width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font:inherit; background:#111113; color:var(--ink); user-select:text; }
+  .row { display:flex; gap:8px; } .row > * { flex:1; min-width:0; }
+  .primary { width:100%; height:42px; background:var(--teal); margin-top:14px; }
+  table { width:100%; border-collapse:collapse; font-size:12px; } th, td { text-align:left; padding:5px 3px; border-bottom:1px solid var(--line); }
+  th { color:var(--mute); font-weight:600; } .mute { color:var(--mute); font-size:12px; }
+  .bar { display:flex; height:10px; border-radius:5px; overflow:hidden; background:#111113; margin:6px 0 4px; }
+  .bar i { display:block; } .legend { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:11.5px; color:var(--mute); }
+  .cat { font-size:10.5px; padding:1px 6px; border-radius:99px; } .c-productive { background:#12372f; color:#5eead4; } .c-neutral { background:#3f3f46; color:#d4d4d8; }
+  .c-unproductive { background:#4c1d24; color:#fda4af; } .c-idle { background:#27272a; color:#a1a1aa; }
+  .kv { display:flex; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px solid var(--line); font-size:13px; } .kv span:first-child { color:var(--mute); } .kv span:last-child { text-align:right; user-select:text; }
+  ul.plain { padding-left:18px; margin:6px 0; } ul.plain li { margin:4px 0; font-size:13px; }
+  #loginHint { color:var(--mute); font-size:12px; }
 </style>
 </head>
 <body>
-<main>
-  <div class="row between" style="margin-bottom:12px">
-    <div><h1>MyZen Agent</h1><div class="mode" id="mode"></div></div>
-    <div style="flex:0"><span id="badge" class="badge offline hidden">Offline</span></div>
-  </div>
-  <div id="msg"></div>
+<header>
+  <span class="rec" id="rec" title="Not recording"></span>
+  <h1>MyZenV2</h1>
+  <span class="icons">
+    <button class="iconbtn" id="infoBtn" title="About and privacy" aria-label="About and privacy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5" stroke-linecap="round"/></svg></button>
+    <button class="iconbtn" id="setBtn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3.9a7 7 0 0 0-2-1.2L14.2 3h-4l-.4 2.6a7 7 0 0 0-2 1.2l-2.3-.9-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.3-.9c.6.5 1.3.9 2 1.2l.4 2.6h4l.4-2.6c.7-.3 1.4-.7 2-1.2l2.3.9 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z" stroke-linejoin="round"/></svg></button>
+  </span>
+</header>
+<div id="msg"></div>
 
-  <section id="login" class="card hidden">
-    <h2>Employee login</h2>
+<main id="login" class="hidden">
+  <div class="view" style="margin-top:30px">
+    <div class="brand" style="justify-content:center;margin-bottom:14px"><svg class="logo" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="#14b8a6"/><path d="M4.5 5h7L4.5 11h7" stroke="#04201c" stroke-width="1.6" fill="none" stroke-linejoin="round"/></svg>Employee login</div>
     <form id="loginForm">
       <label for="email">Work email</label><input id="email" type="email" autocomplete="username" required>
       <label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required>
-      <div style="margin-top:12px"><button style="width:100%" type="submit">Log in</button></div>
+      <button class="btn primary" type="submit">Log in</button>
     </form>
-    <p class="small" id="loginHint"></p>
-  </section>
-
-  <div id="app" class="hidden">
-    <section class="card">
-      <div class="row between"><div><b id="name"></b><div class="small" id="sub"></div></div>
-        <div style="flex:0"><button class="alt" id="logoutBtn">Log out</button></div></div>
-    </section>
-
-    <section class="card">
-      <h2>Attendance</h2>
-      <p class="small" id="since"></p>
-      <div class="row">
-        <button id="punchBtn">Punch in</button>
-        <button id="breakBtn" class="amber">Start break</button>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>Today</h2>
-      <div class="stats">
-        <div class="stat"><b id="sOnline">0m</b><span>Online</span></div>
-        <div class="stat"><b id="sActive">0m</b><span>Active</span></div>
-        <div class="stat"><b id="sIdle">0m</b><span>Idle</span></div>
-        <div class="stat"><b id="sProd">0m</b><span>Productive</span></div>
-        <div class="stat"><b id="sUnprod">0m</b><span>Unproductive</span></div>
-        <div class="stat"><b id="sPct">0%</b><span>Productivity</span></div>
-      </div>
-      <p class="small" id="current" style="margin-bottom:0"></p>
-    </section>
-
-    <section class="card">
-      <h2>Log time</h2>
-      <p class="small" style="margin-top:0">For work done away from this PC. Enter hours, or a start and end time.</p>
-      <form id="logForm">
-        <label for="lDate">Date</label><input id="lDate" type="date" required>
-        <div class="row"><div><label for="lStart">Start</label><input id="lStart" type="time"></div>
-          <div><label for="lEnd">End</label><input id="lEnd" type="time"></div>
-          <div><label for="lHours">Hours</label><input id="lHours" type="number" step="0.25" min="0" max="24"></div></div>
-        <label for="lDesc">What did you work on?</label><textarea id="lDesc" rows="2" maxlength="500" required></textarea>
-        <div style="margin-top:10px"><button style="width:100%" type="submit">Save entry</button></div>
-      </form>
-    </section>
-
-    <section class="card">
-      <h2>Timesheet history</h2>
-      <table><thead><tr><th>Date</th><th>In</th><th>Out</th><th>Worked</th><th>Break</th></tr></thead><tbody id="hist"></tbody></table>
-      <p class="small" id="histManual"></p>
-    </section>
-    <p class="small" id="sync"></p>
+    <p id="loginHint"></p>
   </div>
-
-  <p class="small" style="text-align:center;margin-top:16px">
-    MyZen records the foreground app name, site host and how long you have been idle.
-    It never records what you type. Screenshots are <span id="shots">off</span>.
-  </p>
 </main>
+
+<main id="home" class="hidden">
+  <div class="brand"><svg class="logo" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="#14b8a6"/><path d="M4.5 5h7L4.5 11h7" stroke="#04201c" stroke-width="1.6" fill="none" stroke-linejoin="round"/></svg>Current working time</div>
+  <div class="timer" id="timer">0h 0m 0s</div>
+  <div class="status"><span class="dot" id="dot"></span><span id="statusText"></span></div>
+
+  <button class="btn punch" id="punchBtn">Punch in</button>
+  <button class="btn small-btn" id="breakBtn"><svg viewBox="0 0 16 16" fill="#60a5fa"><rect x="3" y="3" width="4" height="10" rx="1"/><rect x="9" y="3" width="4" height="10" rx="1"/></svg><span id="breakLabel">Start break</span></button>
+  <button class="btn small-btn" id="logBtn"><svg viewBox="0 0 16 16" fill="none" stroke="#14b8a6" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5" stroke-linecap="round"/></svg>Log time</button>
+  <div class="breaks">All breaks duration: <b id="breakTotal">0h 0m 0s</b></div>
+
+  <div class="chips">
+    <button class="chip" id="logsChip" title="Browse today's activity logs"><b id="logCount">0</b><span>Activity logs</span></button>
+    <div class="chip"><b id="shotCount">off</b><span id="shotLabel">Screenshots</span></div>
+    <div class="chip"><b id="pct">0%</b><span>Productivity</span></div>
+  </div>
+  <button class="btn signout" id="logoutBtn">Sign out</button>
+</main>
+
+<main id="logtime" class="hidden"><div class="view">
+  <h2><button class="back" data-back>&larr; Back</button> Log time</h2>
+  <p class="mute" style="margin-top:0">For work done away from this PC or a missed punch. Enter hours, or a start and end time.</p>
+  <form id="logForm">
+    <label for="lDate">Date</label><input id="lDate" type="date" required>
+    <div class="row"><div><label for="lStart">Start</label><input id="lStart" type="time"></div>
+      <div><label for="lEnd">End</label><input id="lEnd" type="time"></div>
+      <div><label for="lHours">Hours</label><input id="lHours" type="number" step="0.25" min="0" max="24"></div></div>
+    <label for="lDesc">What did you work on?</label><textarea id="lDesc" rows="2" maxlength="500" required></textarea>
+    <button class="btn primary" type="submit">Save entry</button>
+  </form>
+  <h2 style="margin-top:20px">Timesheet history</h2>
+  <table><thead><tr><th>Date</th><th>In</th><th>Out</th><th>Worked</th><th>Break</th></tr></thead><tbody id="hist"></tbody></table>
+  <p class="mute" id="histManual"></p>
+</div></main>
+
+<main id="logs" class="hidden"><div class="view">
+  <h2><button class="back" data-back>&larr; Back</button> Today's activity logs <span class="mute" id="logsN"></span></h2>
+  <div class="bar" id="logBar"></div><div class="legend" id="logLegend"></div>
+  <h2 style="margin-top:14px">Top apps</h2><div id="topApps" class="mute"></div>
+  <h2 style="margin-top:14px">Log</h2>
+  <table><thead><tr><th>Time</th><th>App / site</th><th>Type</th><th>Dur</th></tr></thead><tbody id="logRows"></tbody></table>
+  <p class="mute">A long task is split into a new log every 5 minutes so it syncs while in progress. Only the app name and site host are kept, never titles or typed text.</p>
+</div></main>
+
+<main id="settings" class="hidden"><div class="view">
+  <h2><button class="back" data-back>&larr; Back</button> Settings</h2>
+  <div id="settingsRows"></div>
+  <p class="mute">Settings are set by your administrator through the agent's configuration file and Supabase, so they are read-only here.</p>
+</div></main>
+
+<main id="info" class="hidden"><div class="view">
+  <h2><button class="back" data-back>&larr; Back</button> About MyZenV2</h2>
+  <div class="kv"><span>Version</span><span id="ver"></span></div>
+  <h2 style="margin-top:16px">What is recorded</h2>
+  <ul class="plain">
+    <li>Punch in/out, breaks and time you log.</li>
+    <li>While punched in and not on break: the name of the app in front, the site host if available, and seconds since your last mouse/keyboard input.</li>
+  </ul>
+  <h2 style="margin-top:12px">What is never recorded</h2>
+  <ul class="plain">
+    <li>What you type, window titles, page contents, clipboard.</li>
+    <li>Anything while you are punched out or on a break.</li>
+    <li>Screenshots, unless your company has switched them on for your team (currently: <b id="infoShots">off</b>).</li>
+  </ul>
+</div></main>
+
+<footer>
+  <button class="iconbtn" id="syncBtn" title="Sync now" aria-label="Sync now"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.5-5.8M20 4v5h-5"/></svg><span class="badge hidden" id="pendBadge">0</span></button>
+  <div class="foot-mid" id="footText">&copy; 2026 B-Arm | MyZenV2</div>
+  <span class="icons">
+    <button class="iconbtn" id="footLogs" title="Activity logs" aria-label="Activity logs"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 6h14M5 12h14M5 18h9"/></svg><span class="badge hidden" id="logBadge">0</span></button>
+    <button class="iconbtn" id="footShots" title="Screenshots captured today" aria-label="Screenshots"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M9 21h6M12 17v4" stroke-linecap="round"/></svg><span class="badge hidden" id="shotBadge">0</span></button>
+  </span>
+</footer>
+
 <script>
 const $ = (id) => document.getElementById(id)
 const TZ = 'Asia/Kolkata'
+const VIEWS = ['login', 'home', 'logtime', 'logs', 'settings', 'info']
 let st = null
+let view = 'home'
+let base = null
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML }
+const hms = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m ${s % 60}s` }
 const hm = (m) => `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, '0')}m`
+const dur = (ms) => ms >= 3600000 ? hm(ms / 60000) : ms >= 60000 ? `${Math.round(ms / 60000)}m` : `${Math.round(ms / 1000)}s`
 const t = (ms) => ms ? new Date(ms).toLocaleTimeString('en-IN', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }) : '-'
 function flash(text, kind = 'err') {
   $('msg').innerHTML = text ? `<div class="msg ${kind}">${esc(text)}</div>` : ''
-  if (text && kind === 'ok') setTimeout(() => { if ($('msg').textContent === text) $('msg').innerHTML = '' }, 4000)
+  if (text && kind === 'ok') setTimeout(() => { if ($('msg').textContent === text) $('msg').innerHTML = '' }, 3500)
 }
 async function api(path, body) {
   const r = await fetch(path, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -122,39 +181,75 @@ async function api(path, body) {
   return j
 }
 
+function show(v) {
+  view = st && !st.employee ? 'login' : v
+  VIEWS.forEach((x) => $(x).classList.toggle('hidden', x !== view))
+  if (view === 'logtime') loadHistory()
+  if (view === 'logs') loadLogs()
+  if (view === 'settings') renderSettings()
+  if (view === 'info') { $('ver').textContent = st?.version || ''; $('infoShots').textContent = st?.screenshots?.enabled ? 'ON for your team' : 'off' }
+}
+
+function tick() {
+  if (!st || !st.employee) return
+  const el = Date.now() - base.at
+  let w = base.workedMs, b = base.breakMs
+  if (st.tracking) w += el
+  else if (st.onBreak) b += el
+  $('timer').textContent = hms(w)
+  $('breakTotal').textContent = hms(b)
+}
+
 function render() {
   const s = st
-  $('mode').textContent = s.mode === 'supabase' ? 'Connected to Supabase' : 'Demo mode: nothing leaves this PC'
-  $('shots').textContent = s.screenshots?.enabled ? 'ON for your team' : 'off'
   const loggedIn = !!s.employee
-  $('login').classList.toggle('hidden', loggedIn)
-  $('app').classList.toggle('hidden', !loggedIn)
-  $('badge').classList.toggle('hidden', !loggedIn)
+  $('footText').innerHTML = `&copy; 2026 B-Arm | MyZenV2 ${esc(s.version)}`
   if (!loggedIn) {
     $('loginHint').textContent = s.mode === 'demo' ? 'Demo mode: use deena.s@barm.in or chandru.p@barm.in with any password.' : ''
+    $('rec').className = 'rec'; $('rec').title = 'Not recording'
+    if (view !== 'login') show('login')
     return
   }
-  $('name').textContent = s.employee.name
-  $('sub').textContent = [s.employee.email, s.employee.department].filter(Boolean).join(' · ')
-  const label = !s.punchedIn ? 'offline' : s.onBreak ? 'away' : 'online'
-  $('badge').className = `badge ${label}`
-  $('badge').textContent = label === 'online' ? 'Working' : label === 'away' ? 'On break' : 'Punched out'
-  $('since').textContent = s.punchedIn ? `Punched in at ${t(s.since)}${s.onBreak ? ` · break since ${t(s.breakSince)}` : ''}` : 'You are punched out. Activity is not tracked.'
+  if (view === 'login') show('home')
+  base = { workedMs: s.totals.workedMs, breakMs: s.totals.breakMs, at: Date.now() }
+  const label = !s.punchedIn ? 'Punched out: nothing is recorded' : s.onBreak ? 'On break: not recording' : 'Recording: app and idle time'
+  $('rec').className = `rec ${s.tracking ? 'on' : s.onBreak ? 'pause' : ''}`
+  $('rec').title = label
+  $('dot').className = `dot ${s.tracking ? 'on' : s.onBreak ? 'pause' : ''}`
+  $('statusText').textContent = s.punchedIn ? `${label} · since ${t(s.since)}` : label
   $('punchBtn').textContent = s.punchedIn ? 'Punch out' : 'Punch in'
-  $('punchBtn').className = s.punchedIn ? 'red' : ''
-  $('breakBtn').textContent = s.onBreak ? 'End break' : 'Start break'
+  $('punchBtn').className = `btn punch ${s.punchedIn ? 'out' : ''}`
+  $('breakLabel').textContent = s.onBreak ? 'End break' : 'Start break'
   $('breakBtn').disabled = !s.punchedIn
-  const k = s.stats || {}
-  $('sOnline').textContent = hm(k.online || 0); $('sActive').textContent = hm(k.active || 0); $('sIdle').textContent = hm(k.idle || 0)
-  $('sProd').textContent = hm(k.productive || 0); $('sUnprod').textContent = hm(k.unproductive || 0); $('sPct').textContent = `${k.pct || 0}%`
-  const c = s.current
-  $('current').textContent = !s.tracking ? (s.onBreak ? 'On break: not tracking.' : '') : c ? `Now: ${c.app}${c.url ? ' (' + c.url + ')' : ''} · ${c.category}${c.isActive ? '' : ' · idle'}` : 'Waiting for activity…'
-  const bits = []
-  if (s.mode === 'supabase') bits.push(s.pending ? `${s.pending} item(s) waiting to sync` : 'All synced')
-  if (s.sync?.error) bits.push(s.sync.error)
-  $('sync').textContent = bits.join(' · ')
+  $('logCount').textContent = s.logCount
+  $('pct').textContent = `${s.stats?.pct || 0}%`
+  const sh = s.screenshots || {}
+  $('shotCount').textContent = sh.enabled ? sh.todayCount : 'off'
+  $('shotLabel').textContent = sh.enabled ? `Screenshots / ${sh.intervalMinutes}m` : 'Screenshots'
+  const badge = (id, n) => { $(id).textContent = n; $(id).classList.toggle('hidden', !n) }
+  badge('logBadge', s.logCount); badge('shotBadge', sh.enabled ? sh.todayCount : 0)
+  $('footShots').classList.toggle('hidden', !sh.enabled)
+  badge('pendBadge', s.mode === 'supabase' ? s.pending : 0)
+  $('syncBtn').title = s.mode !== 'supabase' ? 'Demo mode: nothing to sync' : s.sync?.error ? `Sync now. ${s.sync.error}` : s.pending ? `Sync now (${s.pending} waiting)` : 'All synced'
   if (s.stale) flash('You are still punched in from an earlier day. Punch out, then log the time you actually worked.', 'warn')
-  else if (s.sync?.expired) flash('Your session expired. Log out and log in again to keep syncing.', 'warn')
+  else if (s.sync?.expired) flash('Your session expired. Sign out and log in again to keep syncing.', 'warn')
+  if (view === 'settings') renderSettings()
+  tick()
+}
+
+function renderSettings() {
+  if (!st) return
+  const sh = st.screenshots || {}
+  const rows = [
+    ['Signed in as', `${st.employee?.name || ''} (${st.employee?.email || ''})`],
+    ['Team', st.employee?.department || '-'],
+    ['Mode', st.mode === 'supabase' ? 'Connected to Supabase' : 'Demo (data stays on this PC)'],
+    ['Sync', st.mode !== 'supabase' ? 'n/a' : st.sync?.error ? st.sync.error : st.pending ? `${st.pending} waiting` : st.sync?.at ? `Up to date (${t(st.sync.at)})` : 'Up to date'],
+    ['Idle after', `${st.idleThresholdSeconds} seconds`],
+    ['Computer', st.machine],
+    ['Screenshots', sh.enabled ? `ON every ${sh.intervalMinutes} min while working (${sh.todayCount} today)` : `Off (${sh.reason || 'default'})`],
+  ]
+  $('settingsRows').innerHTML = rows.map(([k, v]) => `<div class="kv"><span>${esc(k)}</span><span>${esc(v)}</span></div>`).join('')
 }
 
 async function refresh() {
@@ -165,28 +260,52 @@ async function loadHistory() {
     const { days } = await api('/api/history?days=14')
     $('hist').innerHTML = days.map((d) =>
       `<tr><td>${esc(d.date)}</td><td>${esc(t(d.firstIn))}</td><td>${d.open ? 'open' : esc(t(d.lastOut))}</td><td>${esc(hm(d.workedMin))}</td><td>${esc(hm(d.breakMin))}</td></tr>`).join('') ||
-      '<tr><td colspan="5" class="small">No attendance yet.</td></tr>'
+      '<tr><td colspan="5" class="mute">No attendance yet.</td></tr>'
     const manual = days.flatMap((d) => d.manual)
     $('histManual').textContent = manual.length ? `Manual entries: ${manual.map((m) => `${m.date} ${m.hours}h (${m.description})`).join('; ')}` : ''
   } catch (e) { /* shown by refresh */ }
 }
+const COLORS = { productive: '#14b8a6', neutral: '#71717a', unproductive: '#f2546d', idle: '#3f3f46' }
+async function loadLogs() {
+  try {
+    const d = await api('/api/logs')
+    $('logsN').textContent = `(${d.count})`
+    const total = Object.values(d.byCategory).reduce((a, b) => a + b, 0) || 1
+    $('logBar').innerHTML = Object.entries(d.byCategory).map(([k, v]) => `<i style="width:${(v / total) * 100}%;background:${COLORS[k]}"></i>`).join('')
+    $('logLegend').innerHTML = Object.entries(d.byCategory).map(([k, v]) => `<span><span style="color:${COLORS[k]}">&#9632;</span> ${esc(k)} ${esc(dur(v))}</span>`).join('')
+    $('topApps').innerHTML = d.topApps.length ? d.topApps.map((a) => `${esc(a.app)} <b style="color:var(--ink)">${esc(dur(a.ms))}</b>`).join(' &middot; ') : 'Nothing recorded yet today.'
+    $('logRows').innerHTML = d.logs.slice(0, 200).map((r) => {
+      const cat = r.active ? r.category : 'idle'
+      return `<tr><td>${esc(t(r.start))}${r.live ? ' <span class="mute">now</span>' : ''}</td><td>${esc(r.active ? r.app : 'Idle')}${r.host ? `<div class="mute">${esc(r.host)}</div>` : ''}</td><td><span class="cat c-${esc(cat)}">${esc(cat)}</span></td><td>${esc(dur(r.ms))}</td></tr>`
+    }).join('') || '<tr><td colspan="4" class="mute">No logs yet. Punch in to start recording.</td></tr>'
+  } catch (e) { flash(e.message) }
+}
 async function act(fn, ok) {
-  try { await fn(); if (ok) flash(ok, 'ok'); else flash('') } catch (e) { flash(e.message) }
-  await refresh(); await loadHistory()
+  try { await fn(); flash(ok || '', ok ? 'ok' : 'err') } catch (e) { flash(e.message) }
+  await refresh()
+  if (view === 'logtime') loadHistory()
 }
 
 $('loginForm').addEventListener('submit', (e) => {
   e.preventDefault()
   act(async () => { await api('/api/login', { email: $('email').value, password: $('password').value }); $('password').value = '' })
 })
-$('punchBtn').addEventListener('click', () => act(() => api('/api/punch', { type: st.punchedIn ? 'out' : 'in' }), st.punchedIn ? 'Punched out.' : 'Punched in.'))
+$('punchBtn').addEventListener('click', () => act(() => api('/api/punch', { type: st.punchedIn ? 'out' : 'in' }), st.punchedIn ? 'Punched out.' : 'Punched in. Recording started.'))
 $('breakBtn').addEventListener('click', () => act(() => api('/api/break', { action: st.onBreak ? 'end' : 'start' })))
+$('logBtn').addEventListener('click', () => show('logtime'))
+$('logsChip').addEventListener('click', () => show('logs'))
+$('footLogs').addEventListener('click', () => show('logs'))
+$('footShots').addEventListener('click', () => show('settings'))
+$('infoBtn').addEventListener('click', () => show('info'))
+$('setBtn').addEventListener('click', () => show('settings'))
+document.querySelectorAll('[data-back]').forEach((b) => b.addEventListener('click', () => show('home')))
+$('syncBtn').addEventListener('click', () => act(async () => { st = await api('/api/sync', {}) }, st?.mode === 'supabase' ? 'Sync requested.' : ''))
 $('logoutBtn').addEventListener('click', async () => {
   try { await api('/api/logout', {}) } catch (e) {
-    if (e.status === 409 && confirm(`${e.message}\n\nLog out anyway?`)) await api('/api/logout', { force: true }).catch((x) => flash(x.message))
+    if (e.status === 409 && confirm(`${e.message}\n\nSign out anyway?`)) await api('/api/logout', { force: true }).catch((x) => flash(x.message))
     else if (e.status !== 409) flash(e.message)
   }
-  await refresh()
+  show('home'); await refresh()
 })
 $('logForm').addEventListener('submit', (e) => {
   e.preventDefault()
@@ -195,9 +314,10 @@ $('logForm').addEventListener('submit', (e) => {
 })
 
 $('lDate').value = new Date().toLocaleDateString('en-CA', { timeZone: TZ })
-refresh().then(loadHistory)
+refresh().then(() => show(VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home'))
 setInterval(refresh, 5000)
-setInterval(loadHistory, 60000)
+setInterval(tick, 1000)
+setInterval(() => { if (view === 'logs') loadLogs() }, 10000)
 </script>
 </body>
 </html>

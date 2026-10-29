@@ -57,6 +57,11 @@ class SimulatedSource {
     this.until = now + (lo + this.rand() * (hi - lo)) * 1000
   }
 
+  // 1x1 placeholder image so the screenshot pipeline can be demoed without a display.
+  async captureScreen() {
+    return Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')
+  }
+
   getIdleSeconds() {
     this._advance()
     return this.phase.idle ? 9999 : 1

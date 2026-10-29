@@ -135,3 +135,42 @@ test('anon sees no rows (RLS) and cannot call privileged functions directly', as
     await db.exec('reset role')
   }
 })
+
+test('screenshot metadata syncs only when the org switch is on; images never leave the PC', async () => {
+  const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')
+  const mk = () => {
+    const c = live({ settings: { screenshots: { enabled: true, teams: ['*'], intervalMinutes: 10 } } })
+    c.core.screenshots.capturer = async () => PNG
+    return c
+  }
+  // org switch OFF (default): agent refuses to capture at all
+  let c = mk()
+  await c.core.login('deena.s@barm.in', 'secret-pw')
+  c.core.punch('in')
+  assert.equal(await c.core.screenshots.maybeCapture(), null)
+  assert.match(c.core.screenshots.policy().reason, /org policy/)
+
+  // org switch ON
+  await db.exec(`update system_config set config_value = 'true' where config_key = 'screenshots_enabled'`)
+  c = mk()
+  await c.core.login('deena.s@barm.in', 'secret-pw')
+  if (!c.core.state().punchedIn) c.core.punch('in')
+  if (c.core.state().onBreak) c.core.endBreak()
+  assert.ok(await c.core.screenshots.maybeCapture())
+  assert.ok((await c.core.syncNow()).ok)
+  const rows = await q(`select storage_path, uploaded, blurred, local_file, app_name from screenshots`)
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].storage_path, null)
+  assert.equal(rows[0].uploaded, false)
+  assert.equal(rows[0].blurred, false)
+  await c.core.syncNow()
+  assert.equal((await q(`select count(*)::int c from screenshots`))[0].c, 1, 'idempotent')
+
+  // a tampered agent cannot push rows while the switch is OFF
+  await db.exec(`update system_config set config_value = 'false' where config_key = 'screenshots_enabled'`)
+  c = mk()
+  await c.core.login('deena.s@barm.in', 'secret-pw')
+  c.core.store.addScreenshot({ id: '00000000-0000-4000-8000-0000000000aa', time: Date.now(), file: 'x.png', app: 'x' })
+  await c.core.syncNow()
+  assert.equal((await q(`select count(*)::int c from screenshots`))[0].c, 1)
+})

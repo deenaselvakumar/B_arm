@@ -32,7 +32,7 @@ function settings() {
     screenshots: {
       enabled: process.env.ENABLE_SCREENSHOTS === 'true',
       teams: (process.env.SCREENSHOT_TEAMS || '').split(',').map((s) => s.trim()).filter(Boolean),
-      intervalMinutes: Number(process.env.SCREENSHOT_INTERVAL_MINUTES || 10),
+      intervalMinutes: Number(process.env.SCREENSHOT_INTERVAL_MINUTES) || null,
     },
     machine: os.hostname(),
   }

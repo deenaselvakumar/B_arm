@@ -56,10 +56,11 @@ function createServer(core) {
     const s = core.state()
     return { mode: s.mode, pending: s.pending, sync: s.sync, screenshots: s.screenshots }
   }))
-  app.get('/api/sessions', wrap((req) => {
+  app.get('/api/logs', wrap((req) => core.logs(/^\d{4}-\d{2}-\d{2}$/.test(req.query.day || '') ? req.query.day : undefined)))
+  app.post('/api/sync', wrap(async () => { await core.syncNow(); return core.state() }))
+  app.get('/api/screenshots', wrap(() => {
     if (!core.store.employee) throw new RuleError('Please log in first.', 401)
-    const limit = Math.min(200, Number(req.query.limit) || 50)
-    return { sessions: core.store.data.sessions.slice(-limit).reverse() }
+    return { ...core.screenshots.summary(), items: core.store.data.screenshots.slice(-50).reverse().map(({ id, time, app, synced }) => ({ id, time, app, synced })) }
   }))
 
   return app

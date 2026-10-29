@@ -15,7 +15,7 @@ An internal productivity suite for B-Arm (India): a **desktop agent** that emplo
 
 | | Who uses it | What it does |
 |---|---|---|
-| **Desktop agent** (`desktop-agent/`) | Every employee | Log in with own credentials. **Punch In / Punch Out, Start / End Break, Log Time** (manual entries), see own timesheet history. Monitors the foreground app and idle time while punched in. Syncs to Supabase. |
+| **Desktop agent** (`desktop-agent/`) | Every employee | Compact tray-style window with a live working-time counter. Log in with own credentials. **Punch In / Punch Out, Start / End Break, Log Time** (manual entries), see own timesheet history. Monitors the foreground app and idle time while punched in. Syncs to Supabase. |
 | **Web portal** (this folder) | Managers only | Dashboard, Real Time, Reports (with CSV download), User Detail (Overview, Attendance, Productivity, Apps & URLs, Performance Summary, Timesheet, Settings). **Employees do not need the website; punching is desktop-only.** |
 | **Supabase** (`supabase/`) | - | Shared database. `schema.sql` creates it, `seed.sql` loads sample data. |
 
@@ -104,7 +104,7 @@ Reports page: Summary, Monthly Attendance, Productivity, Apps/URLs. Each has a p
 
 - **No keystroke content, ever.** The agent reads the foreground app name, the site host (not path or query), and the OS idle timer (seconds since last input). Window titles are discarded.
 - Monitoring happens only while punched in and not on break.
-- **Screenshots are OFF** and require three independent opt-ins (see agent README). The upload step is a stub, and blur/redaction and employee consent flows are **not implemented**, so do not enable screenshots for real use without adding them and getting legal sign-off.
+- **Screenshots are OFF** and require three independent opt-ins (see agent README). When enabled, the agent captures on an interval while punched in (never on break), keeps the image on the PC and syncs only metadata to the `screenshots` table. Image upload, blur/redaction, employee consent and a manager viewer are **not implemented**, so do not enable screenshots for real use without adding them and getting legal sign-off.
 - Employees should be told what is collected. Check local labour/privacy requirements (e.g. India's DPDP Act) before rollout.
 
 ## Known limitations and next steps

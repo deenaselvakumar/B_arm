@@ -72,6 +72,26 @@ class ActivityMonitor {
     return { app: c.app, url: c.url, category: c.category, isActive: c.isActive, since: c.startTime }
   }
 
+  // Today's activity logs (closed sessions plus the one in progress), newest first, with summaries for the UI.
+  getLogs(day = this.store.dayOf(this.now())) {
+    const rows = this.store.data.sessions
+      .filter((s) => this.store.dayOf(s.startTime) === day)
+      .map((s) => ({ id: s.id, start: s.startTime, end: s.endTime, app: s.app, host: s.url, category: s.category, active: s.isActive, ms: s.durationMs, live: false }))
+    const c = this.current
+    if (c && this.store.dayOf(c.startTime) === day) {
+      rows.push({ id: c.id, start: c.startTime, end: null, app: c.app, host: c.url, category: c.category, active: c.isActive, ms: this.now() - c.startTime, live: true })
+    }
+    rows.sort((a, b) => b.start - a.start)
+    const byCategory = { productive: 0, neutral: 0, unproductive: 0, idle: 0 }
+    const apps = new Map()
+    for (const r of rows) {
+      byCategory[r.active ? r.category : 'idle'] += r.ms
+      if (r.active) apps.set(r.app, (apps.get(r.app) || 0) + r.ms)
+    }
+    const topApps = [...apps].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([app, ms]) => ({ app, ms }))
+    return { day, count: rows.length, byCategory, topApps, logs: rows }
+  }
+
   // Minutes for one day. productivity = productive time / online (tracked) time, as the product spec defines it.
   getStats(day = this.store.dayOf(this.now())) {
     const rows = this.store.data.sessions
