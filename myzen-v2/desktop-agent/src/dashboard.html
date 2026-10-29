@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyZen Agent Dashboard</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 20px;
+      color: #333;
+    }
+    
+    .container {
+      max-width: 500px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+    
+    h1 {
+      font-size: 24px;
+      margin-bottom: 8px;
+      color: #667eea;
+    }
+    
+    .subtitle {
+      color: #666;
+      margin-bottom: 24px;
+      font-size: 14px;
+    }
+    
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    
+    .stat-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 16px;
+      border-radius: 12px;
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      opacity: 0.9;
+      margin-bottom: 4px;
+    }
+    
+    .stat-value {
+      font-size: 28px;
+      font-weight: bold;
+    }
+    
+    .current-activity {
+      background: #f7fafc;
+      padding: 16px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+    }
+    
+    .current-activity h3 {
+      font-size: 14px;
+      margin-bottom: 12px;
+      color: #4a5568;
+    }
+    
+    .activity-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .app-name {
+      font-weight: 600;
+      color: #2d3748;
+    }
+    
+    .category {
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    
+    .category.productive {
+      background: #c6f6d5;
+      color: #22543d;
+    }
+    
+    .category.neutral {
+      background: #e2e8f0;
+      color: #2d3748;
+    }
+    
+    .category.unproductive {
+      background: #fed7d7;
+      color: #742a2a;
+    }
+    
+    .footer {
+      text-align: center;
+      color: #718096;
+      font-size: 12px;
+    }
+    
+    .status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      background: #48bb78;
+      border-radius: 50%;
+      margin-right: 6px;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>MyZen Agent</h1>
+    <p class="subtitle">
+      <span class="status-dot"></span>
+      Monitoring Active
+    </p>
+    
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Online Time</div>
+        <div class="stat-value" id="onlineTime">0h 0m</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Productivity</div>
+        <div class="stat-value" id="productivity">0%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Active Time</div>
+        <div class="stat-value" id="activeTime">0h 0m</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Productive Time</div>
+        <div class="stat-value" id="productiveTime">0h 0m</div>
+      </div>
+    </div>
+    
+    <div class="current-activity">
+      <h3>Current Activity</h3>
+      <div class="activity-info">
+        <div>
+          <div class="app-name" id="appName">Idle</div>
+          <div id="appUrl" style="font-size: 12px; color: #718096; margin-top: 4px;"></div>
+        </div>
+        <span class="category neutral" id="category">idle</span>
+      </div>
+    </div>
+    
+    <div class="footer">
+      MyZen Agent v0.1 • B-Arm India<br>
+      API: http://localhost:3001
+    </div>
+  </div>
+  
+  <script>
+    function formatDuration(minutes) {
+      const hours = Math.floor(minutes / 60)
+      const mins = Math.floor(minutes % 60)
+      return `${hours}h ${mins}m`
+    }
+    
+    async function updateStats() {
+      try {
+        const statsRes = await fetch('http://localhost:3001/api/stats')
+        const stats = await statsRes.json()
+        
+        document.getElementById('onlineTime').textContent = formatDuration(stats.onlineTime)
+        document.getElementById('activeTime').textContent = formatDuration(stats.activeTime)
+        document.getElementById('productiveTime').textContent = formatDuration(stats.productiveTime)
+        document.getElementById('productivity').textContent = stats.productivity + '%'
+        
+        const currentRes = await fetch('http://localhost:3001/api/current')
+        const current = await currentRes.json()
+        
+        if (current.status === 'idle') {
+          document.getElementById('appName').textContent = 'Idle'
+          document.getElementById('appUrl').textContent = ''
+          document.getElementById('category').textContent = 'idle'
+          document.getElementById('category').className = 'category neutral'
+        } else {
+          document.getElementById('appName').textContent = current.appName
+          document.getElementById('appUrl').textContent = current.url || ''
+          document.getElementById('category').textContent = current.category
+          document.getElementById('category').className = `category ${current.category}`
+        }
+      } catch (error) {
+        console.error('Error updating stats:', error)
+      }
+    }
+    
+    updateStats()
+    setInterval(updateStats, 5000)
+  </script>
+</body>
+</html>

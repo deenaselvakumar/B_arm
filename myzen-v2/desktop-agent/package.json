@@ -1,0 +1,48 @@
+{
+  "name": "myzen-v2-agent",
+  "version": "0.1.0",
+  "description": "MyZenV2 Desktop Monitoring Agent",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
+  },
+  "keywords": ["productivity", "monitoring", "electron"],
+  "author": "B-Arm India",
+  "license": "MIT",
+  "dependencies": {
+    "active-win": "^7.8.2",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "node-machine-id": "^1.1.12"
+  },
+  "devDependencies": {
+    "electron": "^27.1.3",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.barm.myzen-agent",
+    "productName": "MyZen Agent",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": ["nsis"],
+      "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.productivity"
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "icon": "assets/icon.png",
+      "category": "Utility"
+    }
+  }
+}
