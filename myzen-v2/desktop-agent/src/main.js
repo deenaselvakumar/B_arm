@@ -4,6 +4,7 @@ const { createCore } = require('./core')
 const { listen } = require('./server')
 const { RealSource, SimulatedSource } = require('./sources')
 
+process.on('unhandledRejection', (e) => console.error('[agent] unhandled rejection:', e))
 const simulate = process.argv.includes('--simulate')
 let win = null
 let tray = null

@@ -30,12 +30,14 @@ Without Electron (servers, CI, trying it on Linux/WSL):
 ```bash
 npm run simulate            # fake activity, 6-20 s phases; open http://127.0.0.1:3001/ui
 npm run start:headless      # real window/idle sampling, no Electron
-npm test                    # 14 tests, incl. real sync against schema.sql in an in-process Postgres
+npm test                    # 15 tests; verified on Node 18, 20 and 22, incl. real sync against schema.sql in an in-process Postgres
 ```
 
 Demo mode (no Supabase vars): log in with `deena.s@barm.in`, `chandru.p@barm.in`, `arun.k@barm.in`, `priya.s@barm.in`, `vikram.s@barm.in` or `meera.n@barm.in` and any password. Data never leaves the PC.
 
 Live mode: set `SUPABASE_URL` and `SUPABASE_ANON_KEY` (the **anon** key only; never the service-role key). Run `supabase/schema.sql` first and create employees with passwords (see the top-level README).
+
+**Runtime:** Electron 27 bundles Node 18, and the headless mode works on Node 18+. The agent talks to Supabase with plain `fetch` (PostgREST RPC) and deliberately does not use `@supabase/supabase-js`, whose Realtime client needs a native WebSocket (Node 22+) and crashed startup on older runtimes.
 
 ## How punch / break / log time work
 

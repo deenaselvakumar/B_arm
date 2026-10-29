@@ -104,3 +104,15 @@ test('live counters: working time excludes breaks; log summary counts today\'s s
   assert.equal(logs.logs.filter((l) => l.live).length, 1)
   assert.ok(logs.topApps[0].app)
 })
+
+test('regression: cloud client starts without a native WebSocket (Electron 27 / Node 18-20)', async () => {
+  const saved = globalThis.WebSocket
+  delete globalThis.WebSocket
+  try {
+    const { core } = makeCore({ settings: { supabaseUrl: 'http://127.0.0.1:9', supabaseAnonKey: 'anon' } })
+    assert.equal(core.cloud.enabled, true)
+    await assert.rejects(core.login('deena.s@barm.in', 'x'), /Cannot reach Supabase/)
+  } finally {
+    if (saved) globalThis.WebSocket = saved
+  }
+})

@@ -1,21 +1,40 @@
-const { createClient } = require('@supabase/supabase-js')
+const TIMEOUT_MS = 15000
 
 // Thin wrapper over the agent_* SQL functions (see supabase/schema.sql). Uses only the PUBLIC anon key;
 // authority comes from the per-employee token returned by agent_login.
+//
+// This talks to PostgREST with plain fetch instead of @supabase/supabase-js: the agent only needs RPC calls,
+// and supabase-js constructs a Realtime client that requires a native WebSocket (Node 22+), which crashes on
+// Electron 27 (Node 18) and Node 20. Global fetch exists from Node 18, so nothing extra is required.
 class Cloud {
   constructor({ url, key }) {
     this.enabled = !!(url && key)
-    this.client = this.enabled ? createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } }) : null
+    this.base = this.enabled ? `${String(url).replace(/\/+$/, '')}/rest/v1/rpc/` : null
+    this.key = key
   }
 
   async _rpc(fn, args) {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
     try {
-      const { data, error } = await this.client.rpc(fn, args)
-      if (error) return { error: { code: 'rpc', message: error.message } }
-      if (data && data.error) return { error: { code: data.error, message: data.error } }
-      return { data }
+      const res = await fetch(this.base + fn, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: this.key, Authorization: `Bearer ${this.key}` },
+        body: JSON.stringify(args),
+        signal: ctrl.signal,
+      })
+      const text = await res.text()
+      let body = null
+      if (text) {
+        try { body = JSON.parse(text) } catch { body = null }
+      }
+      if (!res.ok) return { error: { code: 'rpc', message: body?.message || `HTTP ${res.status}` } }
+      if (body && body.error) return { error: { code: body.error, message: body.error } }
+      return { data: body }
     } catch (e) {
-      return { error: { code: 'network', message: e.message } }
+      return { error: { code: 'network', message: e.name === 'AbortError' ? 'Request timed out' : e.message } }
+    } finally {
+      clearTimeout(timer)
     }
   }
 

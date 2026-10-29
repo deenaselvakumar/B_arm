@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Runs the agent without Electron (servers, CI, demos). Flags: --simulate (fake activity), --fast (short phases).
 const { dataDir, loadEnv, settings } = require('./paths')
+process.on('unhandledRejection', (e) => console.error('[agent] unhandled rejection:', e))
 const dir = dataDir(null)
 loadEnv(dir)
 
