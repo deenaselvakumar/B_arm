@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MyZen Agent</title>
+<style>
+  :root { --teal:#0d9488; --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --bg:#f8fafc; --red:#dc2626; --amber:#d97706; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:var(--ink); background:var(--bg); }
+  main { max-width:440px; margin:0 auto; padding:16px; }
+  h1 { font-size:18px; margin:0; } h2 { font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--mute); margin:0 0 8px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
+  .row { display:flex; gap:8px; align-items:center; } .row > * { flex:1; } .between { justify-content:space-between; }
+  .hidden { display:none !important; }
+  label { display:block; font-size:12px; color:var(--mute); margin:8px 0 3px; }
+  input, textarea { width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font:inherit; }
+  button { padding:10px 12px; border:0; border-radius:8px; background:var(--teal); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
+  button.alt { background:#fff; color:var(--ink); border:1px solid var(--line); }
+  button.red { background:var(--red); } button.amber { background:var(--amber); }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:600; }
+  .online { background:#ccfbf1; color:#115e59; } .away { background:#fef3c7; color:#92400e; } .offline { background:#e2e8f0; color:#475569; }
+  .mode { font-size:11px; color:var(--mute); }
+  .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .stat b { display:block; font-size:18px; } .stat span { font-size:11px; color:var(--mute); }
+  .msg { padding:8px 10px; border-radius:8px; margin-bottom:10px; font-size:13px; }
+  .msg.err { background:#fee2e2; color:#991b1b; } .msg.ok { background:#dcfce7; color:#166534; } .msg.warn { background:#fef3c7; color:#92400e; }
+  table { width:100%; border-collapse:collapse; font-size:12px; } th, td { text-align:left; padding:5px 4px; border-bottom:1px solid var(--line); }
+  th { color:var(--mute); font-weight:600; }
+  .small { font-size:12px; color:var(--mute); }
+</style>
+</head>
+<body>
+<main>
+  <div class="row between" style="margin-bottom:12px">
+    <div><h1>MyZen Agent</h1><div class="mode" id="mode"></div></div>
+    <div style="flex:0"><span id="badge" class="badge offline hidden">Offline</span></div>
+  </div>
+  <div id="msg"></div>
+
+  <section id="login" class="card hidden">
+    <h2>Employee login</h2>
+    <form id="loginForm">
+      <label for="email">Work email</label><input id="email" type="email" autocomplete="username" required>
+      <label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required>
+      <div style="margin-top:12px"><button style="width:100%" type="submit">Log in</button></div>
+    </form>
+    <p class="small" id="loginHint"></p>
+  </section>
+
+  <div id="app" class="hidden">
+    <section class="card">
+      <div class="row between"><div><b id="name"></b><div class="small" id="sub"></div></div>
+        <div style="flex:0"><button class="alt" id="logoutBtn">Log out</button></div></div>
+    </section>
+
+    <section class="card">
+      <h2>Attendance</h2>
+      <p class="small" id="since"></p>
+      <div class="row">
+        <button id="punchBtn">Punch in</button>
+        <button id="breakBtn" class="amber">Start break</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Today</h2>
+      <div class="stats">
+        <div class="stat"><b id="sOnline">0m</b><span>Online</span></div>
+        <div class="stat"><b id="sActive">0m</b><span>Active</span></div>
+        <div class="stat"><b id="sIdle">0m</b><span>Idle</span></div>
+        <div class="stat"><b id="sProd">0m</b><span>Productive</span></div>
+        <div class="stat"><b id="sUnprod">0m</b><span>Unproductive</span></div>
+        <div class="stat"><b id="sPct">0%</b><span>Productivity</span></div>
+      </div>
+      <p class="small" id="current" style="margin-bottom:0"></p>
+    </section>
+
+    <section class="card">
+      <h2>Log time</h2>
+      <p class="small" style="margin-top:0">For work done away from this PC. Enter hours, or a start and end time.</p>
+      <form id="logForm">
+        <label for="lDate">Date</label><input id="lDate" type="date" required>
+        <div class="row"><div><label for="lStart">Start</label><input id="lStart" type="time"></div>
+          <div><label for="lEnd">End</label><input id="lEnd" type="time"></div>
+          <div><label for="lHours">Hours</label><input id="lHours" type="number" step="0.25" min="0" max="24"></div></div>
+        <label for="lDesc">What did you work on?</label><textarea id="lDesc" rows="2" maxlength="500" required></textarea>
+        <div style="margin-top:10px"><button style="width:100%" type="submit">Save entry</button></div>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Timesheet history</h2>
+      <table><thead><tr><th>Date</th><th>In</th><th>Out</th><th>Worked</th><th>Break</th></tr></thead><tbody id="hist"></tbody></table>
+      <p class="small" id="histManual"></p>
+    </section>
+    <p class="small" id="sync"></p>
+  </div>
+
+  <p class="small" style="text-align:center;margin-top:16px">
+    MyZen records the foreground app name, site host and how long you have been idle.
+    It never records what you type. Screenshots are <span id="shots">off</span>.
+  </p>
+</main>
+<script>
+const $ = (id) => document.getElementById(id)
+const TZ = 'Asia/Kolkata'
+let st = null
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML }
+const hm = (m) => `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, '0')}m`
+const t = (ms) => ms ? new Date(ms).toLocaleTimeString('en-IN', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }) : '-'
+function flash(text, kind = 'err') {
+  $('msg').innerHTML = text ? `<div class="msg ${kind}">${esc(text)}</div>` : ''
+  if (text && kind === 'ok') setTimeout(() => { if ($('msg').textContent === text) $('msg').innerHTML = '' }, 4000)
+}
+async function api(path, body) {
+  const r = await fetch(path, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok) { const e = new Error(j.error || 'Request failed'); e.status = r.status; e.body = j; throw e }
+  return j
+}
+
+function render() {
+  const s = st
+  $('mode').textContent = s.mode === 'supabase' ? 'Connected to Supabase' : 'Demo mode: nothing leaves this PC'
+  $('shots').textContent = s.screenshots?.enabled ? 'ON for your team' : 'off'
+  const loggedIn = !!s.employee
+  $('login').classList.toggle('hidden', loggedIn)
+  $('app').classList.toggle('hidden', !loggedIn)
+  $('badge').classList.toggle('hidden', !loggedIn)
+  if (!loggedIn) {
+    $('loginHint').textContent = s.mode === 'demo' ? 'Demo mode: use deena.s@barm.in or chandru.p@barm.in with any password.' : ''
+    return
+  }
+  $('name').textContent = s.employee.name
+  $('sub').textContent = [s.employee.email, s.employee.department].filter(Boolean).join(' · ')
+  const label = !s.punchedIn ? 'offline' : s.onBreak ? 'away' : 'online'
+  $('badge').className = `badge ${label}`
+  $('badge').textContent = label === 'online' ? 'Working' : label === 'away' ? 'On break' : 'Punched out'
+  $('since').textContent = s.punchedIn ? `Punched in at ${t(s.since)}${s.onBreak ? ` · break since ${t(s.breakSince)}` : ''}` : 'You are punched out. Activity is not tracked.'
+  $('punchBtn').textContent = s.punchedIn ? 'Punch out' : 'Punch in'
+  $('punchBtn').className = s.punchedIn ? 'red' : ''
+  $('breakBtn').textContent = s.onBreak ? 'End break' : 'Start break'
+  $('breakBtn').disabled = !s.punchedIn
+  const k = s.stats || {}
+  $('sOnline').textContent = hm(k.online || 0); $('sActive').textContent = hm(k.active || 0); $('sIdle').textContent = hm(k.idle || 0)
+  $('sProd').textContent = hm(k.productive || 0); $('sUnprod').textContent = hm(k.unproductive || 0); $('sPct').textContent = `${k.pct || 0}%`
+  const c = s.current
+  $('current').textContent = !s.tracking ? (s.onBreak ? 'On break: not tracking.' : '') : c ? `Now: ${c.app}${c.url ? ' (' + c.url + ')' : ''} · ${c.category}${c.isActive ? '' : ' · idle'}` : 'Waiting for activity…'
+  const bits = []
+  if (s.mode === 'supabase') bits.push(s.pending ? `${s.pending} item(s) waiting to sync` : 'All synced')
+  if (s.sync?.error) bits.push(s.sync.error)
+  $('sync').textContent = bits.join(' · ')
+  if (s.stale) flash('You are still punched in from an earlier day. Punch out, then log the time you actually worked.', 'warn')
+  else if (s.sync?.expired) flash('Your session expired. Log out and log in again to keep syncing.', 'warn')
+}
+
+async function refresh() {
+  try { st = await api('/api/state'); render() } catch (e) { flash(e.message) }
+}
+async function loadHistory() {
+  try {
+    const { days } = await api('/api/history?days=14')
+    $('hist').innerHTML = days.map((d) =>
+      `<tr><td>${esc(d.date)}</td><td>${esc(t(d.firstIn))}</td><td>${d.open ? 'open' : esc(t(d.lastOut))}</td><td>${esc(hm(d.workedMin))}</td><td>${esc(hm(d.breakMin))}</td></tr>`).join('') ||
+      '<tr><td colspan="5" class="small">No attendance yet.</td></tr>'
+    const manual = days.flatMap((d) => d.manual)
+    $('histManual').textContent = manual.length ? `Manual entries: ${manual.map((m) => `${m.date} ${m.hours}h (${m.description})`).join('; ')}` : ''
+  } catch (e) { /* shown by refresh */ }
+}
+async function act(fn, ok) {
+  try { await fn(); if (ok) flash(ok, 'ok'); else flash('') } catch (e) { flash(e.message) }
+  await refresh(); await loadHistory()
+}
+
+$('loginForm').addEventListener('submit', (e) => {
+  e.preventDefault()
+  act(async () => { await api('/api/login', { email: $('email').value, password: $('password').value }); $('password').value = '' })
+})
+$('punchBtn').addEventListener('click', () => act(() => api('/api/punch', { type: st.punchedIn ? 'out' : 'in' }), st.punchedIn ? 'Punched out.' : 'Punched in.'))
+$('breakBtn').addEventListener('click', () => act(() => api('/api/break', { action: st.onBreak ? 'end' : 'start' })))
+$('logoutBtn').addEventListener('click', async () => {
+  try { await api('/api/logout', {}) } catch (e) {
+    if (e.status === 409 && confirm(`${e.message}\n\nLog out anyway?`)) await api('/api/logout', { force: true }).catch((x) => flash(x.message))
+    else if (e.status !== 409) flash(e.message)
+  }
+  await refresh()
+})
+$('logForm').addEventListener('submit', (e) => {
+  e.preventDefault()
+  const body = { date: $('lDate').value, start: $('lStart').value || null, end: $('lEnd').value || null, hours: $('lHours').value || null, description: $('lDesc').value }
+  act(async () => { await api('/api/log-time', body); $('lDesc').value = ''; $('lHours').value = ''; $('lStart').value = ''; $('lEnd').value = '' }, 'Time entry saved.')
+})
+
+$('lDate').value = new Date().toLocaleDateString('en-CA', { timeZone: TZ })
+refresh().then(loadHistory)
+setInterval(refresh, 5000)
+setInterval(loadHistory, 60000)
+</script>
+</body>
+</html>

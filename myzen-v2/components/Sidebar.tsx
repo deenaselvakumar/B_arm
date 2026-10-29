@@ -13,6 +13,7 @@ import {
   X
 } from 'lucide-react'
 import { useState } from 'react'
+import { useSnapshot } from '@/components/SnapshotProvider'
 
 interface SidebarProps {
   children: React.ReactNode
@@ -31,8 +32,10 @@ export default function Sidebar({ children }: SidebarProps) {
     { name: 'User Detail', href: '/user-detail', icon: Users },
   ]
 
-  const handleLogout = () => {
-    localStorage.removeItem('myzen_auth')
+  const { snap } = useSnapshot()
+
+  const handleLogout = async () => {
+    await fetch('/api/logout', { method: 'POST' })
     router.push('/')
   }
 
@@ -101,7 +104,12 @@ export default function Sidebar({ children }: SidebarProps) {
             })}
           </nav>
 
-          <div className="p-4 border-t border-gray-200">
+          <div className="p-4 border-t border-gray-200 space-y-3">
+            {snap && (
+              <div className={`text-xs px-3 py-2 rounded-lg ${snap.mode === 'supabase' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+                {snap.mode === 'supabase' ? 'Live: Supabase connected' : 'Demo data (Supabase not configured)'}
+              </div>
+            )}
             <button
               onClick={handleLogout}
               className="flex items-center space-x-3 px-4 py-3 w-full rounded-lg text-red-600 hover:bg-red-50 transition-colors"
@@ -115,6 +123,9 @@ export default function Sidebar({ children }: SidebarProps) {
 
       <main className="lg:pl-64 pt-16 lg:pt-0">
         <div className="p-6 lg:p-8">
+          {snap?.warning && (
+            <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">{snap.warning}</div>
+          )}
           {children}
         </div>
       </main>

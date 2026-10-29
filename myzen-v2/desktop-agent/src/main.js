@@ -1,112 +1,84 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage } = require('electron')
-const path = require('path')
-const ActivityMonitor = require('./monitor')
-const DataServer = require('./server')
-const ScreenshotManager = require('./screenshots')
-const { initSupabase, isSupabaseEnabled } = require('./supabase')
+const { app, BrowserWindow, Tray, Menu, nativeImage, powerMonitor, shell } = require('electron')
+const { dataDir, loadEnv, settings } = require('./paths')
+const { createCore } = require('./core')
+const { listen } = require('./server')
+const { RealSource, SimulatedSource } = require('./sources')
 
+const simulate = process.argv.includes('--simulate')
+let win = null
 let tray = null
-let mainWindow = null
-let monitor = null
+let core = null
 let server = null
-let screenshotManager = null
+let quitting = false
 
-function createTray() {
-  const icon = nativeImage.createEmpty()
-  tray = new Tray(icon)
-  
-  const contextMenu = Menu.buildFromTemplate([
-    { 
-      label: 'MyZen Agent v0.1', 
-      enabled: false 
-    },
-    { type: 'separator' },
-    { 
-      label: `Status: Running${isSupabaseEnabled() ? ' (Synced)' : ' (Local)'}`, 
-      enabled: false 
-    },
-    { 
-      label: 'Open Dashboard', 
-      click: () => showDashboard() 
-    },
-    { type: 'separator' },
-    { 
-      label: 'Quit', 
-      click: () => {
-        app.quit()
-      }
+// Generated at runtime so the repo needs no binary assets: a 16x16 teal disc.
+function trayIcon() {
+  const size = 16
+  const buf = Buffer.alloc(size * size * 4)
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const inside = (x - 7.5) ** 2 + (y - 7.5) ** 2 <= 49
+      const i = (y * size + x) * 4
+      buf[i] = 166; buf[i + 1] = 148; buf[i + 2] = 13; buf[i + 3] = inside ? 255 : 0 // BGRA
     }
-  ])
-  
-  tray.setToolTip('MyZen Agent - Monitoring')
-  tray.setContextMenu(contextMenu)
+  }
+  return nativeImage.createFromBitmap(buf, { width: size, height: size })
 }
 
-function showDashboard() {
-  if (mainWindow) {
-    mainWindow.focus()
-    return
-  }
+function showWindow() {
+  if (!win) return
+  win.show()
+  win.focus()
+}
 
-  mainWindow = new BrowserWindow({
-    width: 600,
-    height: 400,
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false
-    },
-    title: 'MyZen Agent Dashboard'
+function createWindow(port) {
+  win = new BrowserWindow({
+    width: 460, height: 760, minWidth: 400, title: 'MyZen Agent', autoHideMenuBar: true,
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   })
-
-  mainWindow.loadFile('src/dashboard.html')
-
-  mainWindow.on('closed', () => {
-    mainWindow = null
+  win.loadURL(`http://127.0.0.1:${port}/ui`)
+  win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' } })
+  win.on('close', (e) => {
+    if (!quitting) { e.preventDefault(); win.hide() }
   })
 }
 
-app.whenReady().then(() => {
-  createTray()
-  
-  initSupabase()
-  
-  monitor = new ActivityMonitor()
-  monitor.start()
-  
-  screenshotManager = new ScreenshotManager()
-  if (screenshotManager.isEnabled()) {
-    screenshotManager.startAutoCapture(
-      process.env.EMPLOYEE_ID,
-      () => monitor.currentSession
-    )
-  } else {
-    console.log('Screenshots DISABLED (privacy-first default)')
-  }
-  
-  server = new DataServer(monitor, screenshotManager)
-  server.start()
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) app.quit()
+else {
+  app.on('second-instance', showWindow)
+  app.whenReady().then(async () => {
+    const dir = dataDir(app)
+    loadEnv(dir)
+    const cfg = settings()
+    const source = simulate ? new SimulatedSource({}) : new RealSource({ getIdleSeconds: () => powerMonitor.getSystemIdleTime() })
+    core = createCore({ dir, settings: cfg, source })
+    try {
+      server = await listen(core)
+    } catch (e) {
+      console.error('[agent] cannot start local server:', e.message)
+      app.quit()
+      return
+    }
+    core.start()
+    createWindow(cfg.port)
 
-  console.log('MyZen Agent started successfully')
-  console.log('API Server running on http://localhost:3001')
-  if (isSupabaseEnabled()) {
-    console.log('Supabase sync: ENABLED')
-  } else {
-    console.log('Supabase sync: DISABLED (local storage only)')
-  }
-})
-
-app.on('window-all-closed', (e) => {
-  e.preventDefault()
-})
-
-app.on('before-quit', () => {
-  if (monitor) {
-    monitor.stop()
-  }
-  if (screenshotManager) {
-    screenshotManager.stopAutoCapture()
-  }
-  if (server) {
-    server.stop()
-  }
-})
+    tray = new Tray(trayIcon())
+    tray.setToolTip('MyZen Agent')
+    tray.setContextMenu(Menu.buildFromTemplate([
+      { label: 'Open MyZen Agent', click: showWindow },
+      { type: 'separator' },
+      { label: 'Quit (stops tracking)', click: () => app.quit() },
+    ]))
+    tray.on('click', showWindow)
+  })
+  app.on('before-quit', (e) => {
+    if (quitting) return
+    quitting = true
+    if (core) {
+      e.preventDefault()
+      core.stop().finally(() => { server?.close(); app.exit(0) })
+    }
+  })
+  app.on('window-all-closed', () => {})
+}

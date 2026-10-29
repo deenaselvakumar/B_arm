@@ -1,203 +1,66 @@
-# MyZen Desktop Agent
+# MyZen Agent (desktop)
 
-The desktop monitoring agent for MyZenV2 productivity suite.
+Installed on each employee's PC. The employee logs in with their own work email and password, then uses **Punch In / Punch Out, Start / End Break, Log Time**, and sees their own timesheet history. While punched in (and not on a break) the agent notes which app is in front and whether the user is idle, classifies it as productive / neutral / unproductive, and syncs to Supabase for the manager portal.
 
-## Features
+The agent is **not** a website: it is an Electron window (with a tray icon) that shows a small UI served from `127.0.0.1` on the same PC.
 
-- **Activity Monitoring**: Tracks active applications and browser URLs
-- **Smart Categorization**: Automatically classifies apps as productive, neutral, or unproductive
-- **Privacy-First**: No keystroke logging, no screenshots (by default)
-- **Local Storage**: All data stored locally in JSON format
-- **REST API**: Exposes activity data via HTTP API for portal integration
-- **System Tray**: Runs quietly in the background
+## Run it
 
-## Installation
-
-### Windows (Primary Support)
-
-1. Install dependencies:
 ```bash
+cd desktop-agent
 npm install
+cp .env.example .env        # leave blank for demo mode
+npm start                   # Electron window
 ```
 
-2. Run in development:
-```bash
-npm start
-```
-
-3. Build installer:
-```bash
-npm run build:win
-```
-
-### macOS
+Without Electron (servers, CI, trying it on Linux/WSL):
 
 ```bash
-npm install
-npm run build:mac
+npm run simulate            # fake activity, 6-20 s phases; open http://127.0.0.1:3001/ui
+npm run start:headless      # real window/idle sampling, no Electron
+npm test                    # 9 tests, incl. real sync against schema.sql in an in-process Postgres
 ```
 
-**Note**: macOS requires accessibility permissions for window tracking.
+Demo mode (no Supabase vars): log in with `deena.s@barm.in`, `chandru.p@barm.in`, `arun.k@barm.in`, `priya.s@barm.in`, `vikram.s@barm.in` or `meera.n@barm.in` and any password. Data never leaves the PC.
 
-### Linux
+Live mode: set `SUPABASE_URL` and `SUPABASE_ANON_KEY` (the **anon** key only; never the service-role key). Run `supabase/schema.sql` first and create employees with passwords (see the top-level README).
 
-```bash
-npm install
-npm run build:linux
-```
+## How punch / break / log time work
 
-**Note**: Linux support is experimental. Active window detection may require additional setup.
+- State machine: Punch In → (Start Break ⇄ End Break) → Punch Out. Invalid transitions (double punch-in, break while punched out) are refused with a message. Punch Out ends an open break.
+- Everything is written to `state.json` in the app's data folder first. A background loop pushes unsynced rows (client-generated UUIDs, so retries are safe) every 30 s and shortly after each action. The UI shows "N items waiting to sync" while offline.
+- **Log Time** takes a date (not in the future), then hours (0-24) or start+end, plus a description. It syncs as a `timesheet_entries` row and appears on the manager's User Detail → Timesheet tab, unapproved.
+- Log out is refused with a warning while unsynced items remain (you can force it and lose them).
+- If the app is closed while punched in, tracking stops but you stay punched in; the UI flags a punch left open from a previous day.
+- Logging in on a second PC restores the last 30 days from Supabase.
 
-## Usage
+## What is collected
 
-### Running the Agent
+| Collected | Not collected |
+|---|---|
+| Foreground app name | Keystrokes or any typed text |
+| Site host (e.g. `github.com`), only where the OS API provides it | URL path/query, window titles, page content |
+| Seconds since last input (OS idle timer; idle after 120 s) | Mouse movement content, clipboard |
+| Punch, break, manual time entries | Anything while punched out or on break |
 
-```bash
-npm start
-```
+Productivity % = productive active time / online (tracked) time. Rules come from the `app_category_rules` table at login (built-in defaults in demo mode).
 
-The agent will:
-- Start monitoring in the background
-- Create a system tray icon
-- Launch API server on `http://localhost:3001`
-- Store data in `data/sessions.json`
+## OS support
 
-### Accessing the Dashboard
+| OS | Status |
+|---|---|
+| Windows 10/11 | Primary target. App name + idle work via `active-win` / Electron. **Browser URL is not available** from `active-win` on Windows, so site-based rules only apply on macOS (needs Screen Recording permission). Not run on Windows here. |
+| macOS | App name + URL via `active-win`; the user must grant Screen Recording. Not run here. |
+| Linux | App name via `active-win` (X11). Simulator works anywhere. |
 
-Right-click the tray icon → "Open Dashboard"
+Honest status: the core (state machine, monitor, sync) is covered by tests. The Electron shell (`src/main.js`: window, tray, single instance) has been syntax-checked but **not launched** in the build sandbox (no display), and installers (`npm run dist:win`) have not been built or code-signed. Do a smoke test on a real Windows PC before rolling out.
 
-Or visit: The dashboard opens automatically when you click "Open Dashboard" from the tray.
+## Screenshots (off)
 
-## API Endpoints
+Capture runs only if **all three** are true: `ENABLE_SCREENSHOTS=true` in the agent env, `system_config.screenshots_enabled = 'true'` in Supabase, and the employee's department is in `SCREENSHOT_TEAMS` (or `system_config.screenshot_teams`, a JSON array; `*` = all). Images are saved locally under the data folder and pruned after 7 days; the **upload to Supabase Storage is a stub**. There is no blurring, redaction or consent prompt yet. Treat this as plumbing, not a finished feature.
 
-### GET /api/status
-Returns agent status and machine ID
+## Security notes
 
-### GET /api/stats
-Returns today's statistics:
-- Online time (minutes)
-- Active time (minutes)
-- Productive time (minutes)
-- Productivity percentage
-- All sessions
-
-### GET /api/current
-Returns current activity:
-- App name
-- URL (if browser)
-- Category
-- Duration
-
-### GET /api/sessions
-Returns all today's sessions
-
-### GET /api/config
-Returns configuration (productive apps, domains, etc.)
-
-### POST /api/config
-Update configuration
-
-## Configuration
-
-Edit `data/config.json` to customize:
-
-- **productiveApps**: Apps considered productive
-- **productiveDomains**: URLs considered productive
-- **unproductiveDomains**: URLs considered unproductive
-- **neutralApps**: Apps considered neutral (e.g., Slack)
-- **idleThresholdSeconds**: Time before considering user idle (default: 300)
-
-## Privacy & Data
-
-### What is Tracked
-- Active application name
-- Browser URL (when applicable)
-- Mouse/keyboard activity (boolean only, not content)
-- Session timestamps and durations
-
-### What is NOT Tracked
-- Keystroke content
-- Screenshots (optional, disabled by default)
-- Passwords or sensitive input
-- Clipboard content
-- Microphone or camera
-
-### Data Storage
-All data is stored locally in:
-- `data/sessions.json` - Activity sessions
-- `data/config.json` - Configuration
-
-No data is sent to external servers unless explicitly configured.
-
-## Integration with Portal
-
-The portal can connect to the agent in two modes:
-
-### Mock Mode (Default)
-Portal uses seed data when no agent is running.
-
-### Live Mode
-Portal connects to `http://localhost:3001` to fetch real-time data from the agent.
-
-To enable live mode in the portal, the agent must be running on the same machine.
-
-## Development
-
-### Project Structure
-```
-desktop-agent/
-├── src/
-│   ├── main.js         # Electron main process
-│   ├── monitor.js      # Activity monitoring logic
-│   ├── server.js       # Express API server
-│   └── dashboard.html  # Local dashboard UI
-├── data/               # Local data storage
-├── package.json
-└── README.md
-```
-
-### Building
-
-```bash
-# Windows
-npm run build:win
-
-# macOS
-npm run build:mac
-
-# Linux
-npm run build:linux
-```
-
-Output will be in `dist/` directory.
-
-## Troubleshooting
-
-### Windows
-- If window detection fails, run as administrator
-- Check Windows Defender hasn't blocked the app
-
-### macOS
-- Grant accessibility permissions in System Preferences → Security & Privacy → Privacy → Accessibility
-- Allow the app to control your computer
-
-### Linux
-- Install required dependencies: `libxss1`
-- Some desktop environments may require additional configuration
-
-## Future Enhancements
-
-- [ ] Optional screenshot capture (with user consent)
-- [ ] Multi-user support
-- [ ] Cloud sync (optional)
-- [ ] Custom productivity rules
-- [ ] Break reminders
-- [ ] Focus mode
-
-## License
-
-MIT License - B-Arm India
-
-## Support
-
-For issues or questions, contact the B-Arm development team.
+- The local server binds to `127.0.0.1` only, has no CORS, rejects unexpected `Host`/`Origin` headers, and the Electron window runs with `contextIsolation` on and `nodeIntegration` off.
+- The session token and unsynced data sit in `state.json` in the user's profile, unencrypted. Another local user with file access could read them.
+- Timestamps use the PC clock and are trusted by the server.

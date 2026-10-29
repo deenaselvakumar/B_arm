@@ -1,378 +1,98 @@
-const activeWin = require('active-win')
-const fs = require('fs')
-const path = require('path')
-const { machineIdSync } = require('node-machine-id')
-const { getSupabase, isSupabaseEnabled } = require('./supabase')
+const { randomUUID } = require('crypto')
+const { categorize, toHost } = require('./rules')
 
+const ROTATE_MS = 5 * 60 * 1000 // close/reopen long sessions so they sync to the portal while still in progress
+const MIN_SESSION_MS = 1000
+
+// Samples the foreground app + idle timer. It records only while the employee is punched in and not on a
+// break, so nothing is observed off the clock.
 class ActivityMonitor {
-  constructor() {
-    this.sessions = []
-    this.currentSession = null
-    this.isActive = false
-    this.lastActivity = Date.now()
-    this.checkInterval = null
-    this.syncInterval = null
-    this.machineId = machineIdSync()
-    this.employeeId = process.env.EMPLOYEE_ID || null
-    this.dataPath = path.join(__dirname, '../data/sessions.json')
-    this.configPath = path.join(__dirname, '../data/config.json')
-    
-    this.loadConfig()
-    this.loadSessions()
+  constructor({ store, source, getRules, getIdleThreshold, now = () => Date.now() }) {
+    this.store = store
+    this.source = source
+    this.getRules = getRules
+    this.getIdleThreshold = getIdleThreshold
+    this.now = now
+    this.current = null
+    this.timer = null
+    this.busy = false
   }
 
-  loadConfig() {
+  async tick() {
+    if (this.busy) return
+    this.busy = true
     try {
-      if (fs.existsSync(this.configPath)) {
-        this.config = JSON.parse(fs.readFileSync(this.configPath, 'utf8'))
-      } else {
-        this.config = {
-          productiveApps: [
-            'Visual Studio Code',
-            'IntelliJ IDEA',
-            'PyCharm',
-            'Sublime Text',
-            'Atom',
-            'Eclipse',
-            'NetBeans',
-            'WebStorm',
-            'Xcode',
-            'Android Studio',
-            'Figma',
-            'Adobe XD',
-            'Sketch',
-            'Photoshop',
-            'Illustrator',
-            'Terminal',
-            'iTerm',
-            'Git',
-            'Docker',
-            'Postman'
-          ],
-          productiveDomains: [
-            'github.com',
-            'gitlab.com',
-            'stackoverflow.com',
-            'docs.microsoft.com',
-            'developer.mozilla.org',
-            'npmjs.com',
-            'pypi.org',
-            'aws.amazon.com',
-            'console.cloud.google.com',
-            'figma.com',
-            'dribbble.com',
-            'behance.net'
-          ],
-          unproductiveDomains: [
-            'facebook.com',
-            'twitter.com',
-            'instagram.com',
-            'reddit.com',
-            'youtube.com',
-            'netflix.com',
-            'twitch.tv',
-            'tiktok.com'
-          ],
-          neutralApps: [
-            'Slack',
-            'Teams',
-            'Discord',
-            'Zoom',
-            'Skype',
-            'Mail',
-            'Outlook',
-            'Calendar'
-          ],
-          idleThresholdSeconds: 300
-        }
-        this.saveConfig()
+      if (!this.store.isTracking()) return this.closeCurrent()
+      const idleFor = this.source.getIdleSeconds()
+      const active = idleFor < this.getIdleThreshold()
+      let app = 'Idle', host = null
+      if (active) {
+        const w = await this.source.getActiveWindow()
+        app = w?.app || 'Unknown'
+        host = toHost(w?.url)
       }
-    } catch (error) {
-      console.error('Error loading config:', error)
+      const key = `${active}|${app}|${host ?? ''}`
+      const t = this.now()
+      if (this.current && this.current.key === key && t - this.current.startTime < ROTATE_MS) return
+      this.closeCurrent(t)
+      this.current = {
+        key, id: randomUUID(), startTime: t, app, url: host, isActive: active,
+        category: active ? categorize(this.getRules(), app, host) : 'neutral',
+      }
+    } finally {
+      this.busy = false
     }
   }
 
-  saveConfig() {
-    try {
-      const dir = path.dirname(this.configPath)
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true })
-      }
-      fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2))
-    } catch (error) {
-      console.error('Error saving config:', error)
-    }
+  closeCurrent(at = this.now()) {
+    const c = this.current
+    this.current = null
+    if (!c || at - c.startTime < MIN_SESSION_MS) return
+    this.store.addSession({
+      id: c.id, startTime: c.startTime, endTime: at, app: c.app, url: c.url,
+      category: c.category, isActive: c.isActive, durationMs: at - c.startTime,
+    })
   }
 
-  loadSessions() {
-    try {
-      if (fs.existsSync(this.dataPath)) {
-        const data = fs.readFileSync(this.dataPath, 'utf8')
-        this.sessions = JSON.parse(data)
-      }
-    } catch (error) {
-      console.error('Error loading sessions:', error)
-      this.sessions = []
-    }
-  }
-
-  saveSessions() {
-    try {
-      const dir = path.dirname(this.dataPath)
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true })
-      }
-      fs.writeFileSync(this.dataPath, JSON.stringify(this.sessions, null, 2))
-    } catch (error) {
-      console.error('Error saving sessions:', error)
-    }
-  }
-
-  categorizeActivity(appName, url) {
-    if (this.config.productiveApps.some(app => 
-      appName.toLowerCase().includes(app.toLowerCase())
-    )) {
-      return 'productive'
-    }
-
-    if (url) {
-      if (this.config.productiveDomains.some(domain => url.includes(domain))) {
-        return 'productive'
-      }
-      if (this.config.unproductiveDomains.some(domain => url.includes(domain))) {
-        return 'unproductive'
-      }
-    }
-
-    if (this.config.neutralApps.some(app => 
-      appName.toLowerCase().includes(app.toLowerCase())
-    )) {
-      return 'neutral'
-    }
-
-    return 'neutral'
-  }
-
-  async checkActivity() {
-    try {
-      const window = await activeWin()
-      
-      if (!window) {
-        this.handleIdle()
-        return
-      }
-
-      const now = Date.now()
-      const appName = window.owner.name
-      let url = null
-
-      if (appName.toLowerCase().includes('chrome') || 
-          appName.toLowerCase().includes('firefox') ||
-          appName.toLowerCase().includes('safari') ||
-          appName.toLowerCase().includes('edge')) {
-        url = window.url || null
-      }
-
-      const category = this.categorizeActivity(appName, url)
-
-      if (!this.currentSession || 
-          this.currentSession.appName !== appName || 
-          this.currentSession.url !== url) {
-        
-        if (this.currentSession) {
-          this.currentSession.endTime = now
-          this.currentSession.duration = now - this.currentSession.startTime
-          this.sessions.push(this.currentSession)
-          this.saveSessions()
-        }
-
-        this.currentSession = {
-          startTime: now,
-          endTime: null,
-          appName: appName,
-          url: url,
-          category: category,
-          isActive: true,
-          duration: 0
-        }
-      }
-
-      this.lastActivity = now
-      this.isActive = true
-    } catch (error) {
-      console.error('Error checking activity:', error)
-    }
-  }
-
-  handleIdle() {
-    if (this.currentSession && this.isActive) {
-      const now = Date.now()
-      const idleTime = now - this.lastActivity
-
-      if (idleTime > this.config.idleThresholdSeconds * 1000) {
-        this.currentSession.endTime = now
-        this.currentSession.duration = now - this.currentSession.startTime
-        this.currentSession.isActive = false
-        this.sessions.push(this.currentSession)
-        this.saveSessions()
-        this.currentSession = null
-        this.isActive = false
-      }
-    }
-  }
-
-  start() {
-    console.log('Activity monitoring started')
-    this.checkInterval = setInterval(() => this.checkActivity(), 5000)
-    
-    if (isSupabaseEnabled() && this.employeeId) {
-      console.log('Supabase sync enabled')
-      this.syncInterval = setInterval(() => this.syncToSupabase(), 60000)
-      this.updateEmployeeStatus('online')
-    }
+  start(intervalMs) {
+    this.stop()
+    this.timer = setInterval(() => this.tick().catch((e) => console.error('[agent] tick failed:', e)), intervalMs)
+    this.tick().catch(() => {})
   }
 
   stop() {
-    if (this.checkInterval) {
-      clearInterval(this.checkInterval)
-    }
-    if (this.syncInterval) {
-      clearInterval(this.syncInterval)
-    }
-    if (this.currentSession) {
-      this.currentSession.endTime = Date.now()
-      this.currentSession.duration = this.currentSession.endTime - this.currentSession.startTime
-      this.sessions.push(this.currentSession)
-      this.saveSessions()
-    }
-    if (isSupabaseEnabled() && this.employeeId) {
-      this.updateEmployeeStatus('offline')
-      this.syncToSupabase()
-    }
-    console.log('Activity monitoring stopped')
+    if (this.timer) clearInterval(this.timer)
+    this.timer = null
+    this.closeCurrent()
   }
 
-  async syncToSupabase() {
-    if (!isSupabaseEnabled() || !this.employeeId) return
-
-    const supabase = getSupabase()
-    const today = new Date().toISOString().split('T')[0]
-
-    try {
-      const unsyncedSessions = this.sessions.filter(s => !s.synced)
-      
-      if (unsyncedSessions.length > 0) {
-        const sessionsToInsert = unsyncedSessions.map(s => ({
-          employee_id: this.employeeId,
-          start_time: new Date(s.startTime).toISOString(),
-          end_time: s.endTime ? new Date(s.endTime).toISOString() : null,
-          app_name: s.appName,
-          url: s.url,
-          category: s.category,
-          is_active: s.isActive,
-          duration_ms: s.duration
-        }))
-
-        const { error } = await supabase
-          .from('activity_sessions')
-          .insert(sessionsToInsert)
-
-        if (!error) {
-          unsyncedSessions.forEach(s => s.synced = true)
-          this.saveSessions()
-          console.log(`Synced ${unsyncedSessions.length} sessions to Supabase`)
-        }
-      }
-
-      const stats = this.getStats()
-      const { error: statsError } = await supabase
-        .from('daily_stats')
-        .upsert({
-          employee_id: this.employeeId,
-          stat_date: today,
-          online_minutes: stats.onlineTime,
-          active_minutes: stats.activeTime,
-          productive_minutes: stats.productiveTime,
-          productivity_percentage: parseFloat(stats.productivity),
-          present: true,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'employee_id,stat_date'
-        })
-
-      if (statsError) {
-        console.error('Error syncing stats:', statsError)
-      }
-    } catch (error) {
-      console.error('Error syncing to Supabase:', error)
-    }
+  currentActivity() {
+    const c = this.current
+    if (!c) return null
+    return { app: c.app, url: c.url, category: c.category, isActive: c.isActive, since: c.startTime }
   }
 
-  async updateEmployeeStatus(status) {
-    if (!isSupabaseEnabled() || !this.employeeId) return
-
-    const supabase = getSupabase()
-    
-    try {
-      await supabase
-        .from('employees')
-        .update({ 
-          status,
-          machine_id: this.machineId,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', this.employeeId)
-      
-      console.log(`Employee status updated: ${status}`)
-    } catch (error) {
-      console.error('Error updating employee status:', error)
-    }
-  }
-
-  getStats() {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const todayTimestamp = today.getTime()
-
-    const todaySessions = this.sessions.filter(s => s.startTime >= todayTimestamp)
-
-    let totalOnline = 0
-    let totalActive = 0
-    let totalProductive = 0
-
-    todaySessions.forEach(session => {
-      totalOnline += session.duration
-      if (session.isActive) {
-        totalActive += session.duration
-        if (session.category === 'productive') {
-          totalProductive += session.duration
-        }
-      }
-    })
-
-    const productivity = totalOnline > 0 ? (totalProductive / totalOnline) * 100 : 0
-
+  // Minutes for one day. productivity = productive time / online (tracked) time, as the product spec defines it.
+  getStats(day = this.store.dayOf(this.now())) {
+    const rows = this.store.data.sessions
+      .filter((s) => this.store.dayOf(s.startTime) === day)
+      .map((s) => ({ ms: s.durationMs, active: s.isActive, cat: s.category }))
+    const c = this.current
+    if (c && this.store.dayOf(c.startTime) === day) rows.push({ ms: this.now() - c.startTime, active: c.isActive, cat: c.category })
+    const min = (f) => rows.filter(f).reduce((a, r) => a + r.ms, 0) / 60000
+    const online = min(() => true)
+    const active = min((r) => r.active)
+    const productive = min((r) => r.active && r.cat === 'productive')
+    const unproductive = min((r) => r.active && r.cat === 'unproductive')
+    const breaks = this.store.data.breaks
+      .filter((b) => this.store.dayOf(b.start) === day)
+      .reduce((a, b) => a + (b.minutes ?? Math.max(0, ((b.end ?? this.now()) - b.start) / 60000)), 0)
+    const r = Math.round
     return {
-      onlineTime: Math.floor(totalOnline / 1000 / 60),
-      activeTime: Math.floor(totalActive / 1000 / 60),
-      productiveTime: Math.floor(totalProductive / 1000 / 60),
-      productivity: productivity.toFixed(2),
-      sessions: todaySessions
+      date: day, online: r(online), active: r(active), productive: r(productive), unproductive: r(unproductive),
+      idle: r(online - active), breaks: r(breaks), pct: online > 0 ? +((productive / online) * 100).toFixed(2) : 0,
     }
-  }
-
-  getCurrentActivity() {
-    if (this.currentSession) {
-      return {
-        appName: this.currentSession.appName,
-        url: this.currentSession.url,
-        category: this.currentSession.category,
-        isActive: this.isActive,
-        duration: Math.floor((Date.now() - this.currentSession.startTime) / 1000 / 60)
-      }
-    }
-    return null
   }
 }
 
-module.exports = ActivityMonitor
+module.exports = { ActivityMonitor }

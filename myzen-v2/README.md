@@ -1,314 +1,129 @@
-# MyZenV2 - Productivity Suite
+# MyZenV2
 
-An internal We360-style productivity monitoring system for B-Arm (India), consisting of a **desktop application** for employees and a **web portal** for managers.
+An internal productivity suite for B-Arm (India): a **desktop agent** that employees run on their own PCs, a **manager web portal**, and **Supabase (Postgres)** as the shared database. MyZenV2 is original branding.
 
-## 🎯 Architecture Overview
+```
+ Employee PC                              Cloud                        Manager browser
+┌─────────────────────────────┐       ┌───────────────┐        ┌──────────────────────────┐
+│ MyZen Agent (Electron)      │       │               │        │ MyZenV2 portal (Next.js) │
+│  login · punch in/out       │  RPC  │   Supabase    │ service│  Dashboard · Real Time   │
+│  break · log time           ├──────►│   Postgres    │◄───────┤  Reports · User Detail   │
+│  app/idle monitoring        │ (anon │  (RLS on,     │  role  │  (manager login only)    │
+│  local-first, syncs queue   │  key) │   no policies)│ (server│                          │
+└─────────────────────────────┘       └───────────────┘  side) └──────────────────────────┘
+```
 
-### Desktop Application (Employee-Facing)
-**Installed on each employee's computer**
+| | Who uses it | What it does |
+|---|---|---|
+| **Desktop agent** (`desktop-agent/`) | Every employee | Log in with own credentials. **Punch In / Punch Out, Start / End Break, Log Time** (manual entries), see own timesheet history. Monitors the foreground app and idle time while punched in. Syncs to Supabase. |
+| **Web portal** (this folder) | Managers only | Dashboard, Real Time, Reports (with CSV download), User Detail (Overview, Attendance, Productivity, Apps & URLs, Performance Summary, Timesheet, Settings). **Employees do not need the website; punching is desktop-only.** |
+| **Supabase** (`supabase/`) | - | Shared database. `schema.sql` creates it, `seed.sql` loads sample data. |
 
-Employees download and install the desktop agent, which provides:
-- **Login** with employee credentials
-- **Punch In/Out** - Clock in and out for the day
-- **Break Management** - Start and end breaks
-- **Manual Time Logging** - Add manual time entries if needed
-- **Background Activity Monitoring** - Tracks apps and URLs for productivity insights
-- **Auto-sync** - All data syncs to Supabase (or local storage in demo mode)
+## The flow
 
-### Web Portal (Manager-Facing)
-**Runs as a web application (Next.js)**
+1. **Download / install** the agent on the employee's PC (see [`desktop-agent/README.md`](desktop-agent/README.md)).
+2. **Log in** inside the agent with the employee's work email and password.
+3. **Punch In.** Only now does the agent observe the foreground app and idle time. **Start Break** pauses observation; **End Break** resumes it; **Punch Out** stops it. **Log Time** adds a manual entry (work away from the PC, a missed punch).
+4. The agent writes everything to a local file first, then pushes to Supabase every 30 s and whenever you punch. If the PC is offline, nothing is lost: the queue flushes when the network returns.
+5. **Managers** open the web portal, log in with a manager account, and see dashboards, user detail and reports built from the same Supabase data (the page refreshes itself every 20 s).
 
-Managers access via browser to view:
-- **Dashboard** - Team productivity metrics and trends
-- **User Detail** - Individual employee insights and timesheets
-- **Reports** - Summary, Attendance, Productivity, Apps/URLs with CSV export
-- **Real Time** - Live activity monitoring
-- **Analytics** - Advanced insights (placeholder)
+## Demo mode vs live mode
 
-### Shared Database
-**Supabase (PostgreSQL)**
-- Centralizes all data from desktop agents
-- Powers manager reports and dashboards
-- Falls back to mock data when not configured
+| | Demo (default) | Live (Supabase) |
+|---|---|---|
+| Portal | Env vars missing: shows bundled sample data (`lib/demoData.json`). **Any email/password logs in.** | `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` set: reads Supabase server-side. Only accounts with `is_manager = true` can log in, with a real password. |
+| Agent | `SUPABASE_URL`/`SUPABASE_ANON_KEY` missing: data stays on the PC; login only accepts the built-in demo accounts. | Both set: login is verified by Supabase; data syncs. |
 
-## 🚀 Quick Start
+If live mode is on but Supabase is unreachable, the portal falls back to demo data **and shows a warning banner** (it never silently pretends to be live). The badge in the sidebar always says Demo or Live.
 
-### For Employees: Desktop Agent
+Sample data: Chandru P and Deena Selvakumar for Oct 2026 are seeded from the two CSVs in `supabase/data/` (present days 21 and 23 match exactly; productivity within 0.1 pt of the CSV). Arun Kumar, Priya Sharma, Vikram Singh, Meera Nair and a manager (`manager@barm.in`) are **fictional** teammates. "Now" in demo data is frozen at 29 Oct 2026, 13:00 IST.
 
-#### 1. Download & Install
+## Run the portal locally
+
 ```bash
-cd desktop-agent
+cd myzen-v2
 npm install
-```
-
-#### 2. Configure (Optional - for Supabase sync)
-Copy `.env.example` to `.env` and add Supabase credentials:
-```bash
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_KEY=your-service-role-key
-```
-
-#### 3. Run the Agent
-```bash
-npm start
-```
-
-#### 4. Login & Punch
-- Desktop window opens automatically
-- Login with your employee credentials
-- Click **Punch In** to start your workday
-- Use **Start Break** / **End Break** as needed
-- Click **Punch Out** when done
-
-**Demo Accounts:**
-- chandru.p@barm.in (password: any)
-- deena.s@barm.in (password: any)
-
-### For Managers: Web Portal
-
-#### 1. Install
-```bash
-cd myzen-v2  # (parent directory)
-npm install
-```
-
-#### 2. Configure Supabase (Optional)
-Copy `.env.example` to `.env.local` and add:
-```bash
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-```
-
-#### 3. Run Portal
-```bash
-# Development
-npm run dev
-
-# Production
+npm run dev          # http://localhost:3000, demo mode, any credentials work
+# or
 npm run build && npm start
 ```
 
-Access at: `http://localhost:3000`
+## Connect Supabase
 
-**Demo Login:** Any credentials accepted
+1. In a Supabase project, open **SQL editor** and run, in order:
+   1. [`supabase/schema.sql`](supabase/schema.sql): tables, RLS, the `agent_*` functions. Safe to re-run.
+   2. [`supabase/seed.sql`](supabase/seed.sql): sample data. **Skip this for a real rollout** and add your real employees instead (see below).
+2. Project Settings → API: copy the URL, the `anon` key and the `service_role` key.
+3. Portal: copy `.env.example` to `.env.local` and fill in `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and a random `SESSION_SECRET`. Restart. The sidebar badge should read **Live**.
+4. Agent: put `SUPABASE_URL` and `SUPABASE_ANON_KEY` in the agent's `.env`. **Never put the service-role key on an employee PC.**
 
-## 📊 Data Flow
+| Variable | Used by | Notes |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | portal, agent | Project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | agent (as `SUPABASE_ANON_KEY` also accepted) | Public key; safe on PCs because all tables are locked by RLS and the agent only calls token-checked functions |
+| `SUPABASE_SERVICE_ROLE_KEY` | portal server only | Bypasses RLS. Never commit, never ship to browsers or PCs |
+| `SESSION_SECRET` | portal | Signs the manager session cookie. Falls back to the service-role key, then to a public demo constant, so set it |
 
+### Adding real employees and passwords
+
+Passwords are stored as bcrypt hashes. In the SQL editor:
+
+```sql
+insert into employees (email, name, department, role, is_manager)
+values ('someone@barm.in', 'Someone', 'Engineering', 'Developer', false);
+select set_employee_password('someone@barm.in', 'a-strong-password');
 ```
-Employee Desktop Agent
-    ↓
-  Login + Punch In/Out + Break + Activity Tracking
-    ↓
-  Supabase Database (PostgreSQL)
-    ↓
-Manager Web Portal
-    ↓
-  Dashboard + Reports + User Detail
-```
 
-## 🗄️ Database Setup
+`seed.sql` ends by giving every sample account the password **`myzen123`**. That is for demos only: before the database holds real data, delete the seeded employees or change every password with `set_employee_password`.
 
-### 1. Create Supabase Project
-- Go to [supabase.com](https://supabase.com)
-- Create a new project
-- Copy your project URL and keys
+### Security model (what is and isn't protected)
 
-### 2. Run Schema Migration
-In Supabase SQL Editor, run:
+- Every table has RLS enabled with **no** policies for `anon`/`authenticated`: the public key cannot read or write any table directly.
+- The agent uses `agent_login`, `agent_sync`, `agent_history`, `agent_logout`. Login returns a random token; only its SHA-256 is stored; it expires after 30 days and is revoked on logout. Each function resolves the employee from the token, so one employee cannot write another's data.
+- Login lockout: 10 failures per 10 minutes per account. This can also be used to lock a known email out for 10 minutes.
+- **Known limit:** timestamps come from the employee's PC clock and are trusted. An employee with admin rights can alter the clock or the local file. This is an honest-effort internal tool, not tamper-proof.
+- The portal's manager session is an HMAC-signed, HttpOnly cookie (8 h). Login is rate limited per IP in memory (resets on restart; per-instance).
+
+## Exposing the portal with ngrok
+
+If "grok" in the request meant **ngrok**, this is how to share the portal (not tested here: the sandbox has no ngrok binary or authtoken):
+
 ```bash
-supabase/schema.sql
+npm run build && npm start                 # port 3000
+ngrok config add-authtoken <your-token>    # once
+ngrok http 3000
 ```
 
-### 3. Seed Sample Data (Optional)
-Run in Supabase SQL Editor:
-```bash
-supabase/seed.sql
+Before you do this: set `SESSION_SECRET`, run in **live** mode, and remove/change the seeded `myzen123` passwords. In demo mode **anyone with the URL can log in with any password.** Tunnel only the portal. Never tunnel the agent's local port (3001).
+
+## Reports
+
+Reports page: Summary, Monthly Attendance, Productivity, Apps/URLs. Each has a preview table and a client-side CSV download (cells starting with `=`, `+`, `-`, `@` are neutralised against spreadsheet formula injection). Analytics is a placeholder page.
+
+## Privacy
+
+- **No keystroke content, ever.** The agent reads the foreground app name, the site host (not path or query), and the OS idle timer (seconds since last input). Window titles are discarded.
+- Monitoring happens only while punched in and not on break.
+- **Screenshots are OFF** and require three independent opt-ins (see agent README). The upload step is a stub, and blur/redaction and employee consent flows are **not implemented**, so do not enable screenshots for real use without adding them and getting legal sign-off.
+- Employees should be told what is collected. Check local labour/privacy requirements (e.g. India's DPDP Act) before rollout.
+
+## Known limitations and next steps
+
+- Portal live mode loads the last 62 days of attendance/stats and the last 7 days of app sessions. Larger orgs need server-side aggregation (SQL views) and pagination.
+- Single shared manager role; no per-team manager scoping, no password reset UI, no audit log.
+- Productivity rules are rows in `app_category_rules` (editable in SQL; no UI yet). The Settings tab is read-only.
+- Real-time = polling (20 s), not Supabase Realtime.
+- Not yet verified against a real Supabase project: the SQL is tested in an in-process Postgres (PGlite) and the portal against a stub REST server. Run the schema in a scratch project first.
+- Next: manager UI for rules, device-bound agent tokens, server-side time validation, screenshot storage bucket + blurring + consent.
+
+## Layout
+
 ```
-
-### 4. Configure Applications
-Add environment variables to both:
-- Desktop agent: `desktop-agent/.env`
-- Web portal: `.env.local`
-
-## 🔐 Privacy & Security
-
-### What is Tracked
-- **Punch in/out times** - Employee attendance
-- **Break duration** - Rest period tracking
-- **Active application name** - What software is being used
-- **Browser URLs** - Web activity (when browser is active)
-- **Activity status** - Active vs idle (boolean only, not content)
-
-### What is NOT Tracked
-- ❌ Keystroke content
-- ❌ Screenshots (OFF by default; configurable)
-- ❌ Passwords or sensitive input
-- ❌ Clipboard content
-- ❌ Microphone or camera
-
-### Screenshots (Optional Feature)
-**Default: OFF**
-
-Can be enabled per-team by setting in agent `.env`:
-```bash
-ENABLE_SCREENSHOTS=true
-SCREENSHOT_INTERVAL_MINUTES=10
-BLUR_SCREENSHOTS=true
+app/                 Next.js routes ((portal)/ pages, api/login|logout|snapshot)
+components/          Sidebar, SnapshotProvider
+lib/                 data.server.ts (Supabase or demo), derive.ts (metrics), session.ts, csv.ts, demoData.json
+middleware.ts        redirects unauthenticated users to the login page
+supabase/            schema.sql, seed.sql, data/*.csv
+scripts/generate-seed.mjs   rebuilds seed.sql + demoData.json from the CSVs (npm run seed)
+desktop-agent/       Electron/Node agent + tests
 ```
-
-When enabled:
-- Screenshots captured at intervals
-- Stored locally or synced to Supabase Storage
-- Can be blurred automatically
-- Clear privacy disclosure required
-
-## 📱 Operating System Support
-
-| OS | Desktop Agent | Web Portal |
-|----|---------------|------------|
-| **Windows** | ✅ Full Support | ✅ Any Browser |
-| **macOS** | ⚠️ Experimental | ✅ Any Browser |
-| **Linux** | ⚠️ Experimental | ✅ Any Browser |
-
-**macOS Note:** Requires accessibility permissions  
-**Linux Note:** May require additional window detection setup
-
-## 🎨 Features by Role
-
-### Employee Features (Desktop Agent)
-- ✅ Secure login with employee credentials
-- ✅ One-click punch in/out
-- ✅ Break start/end tracking
-- ✅ Manual time entry (for missed punches)
-- ✅ Live productivity stats
-- ✅ Today's summary (hours, productivity, breaks)
-- ✅ Runs in system tray
-- ✅ Auto-sync to Supabase
-
-### Manager Features (Web Portal)
-- ✅ Team dashboard with KPIs
-- ✅ Productivity trends and charts
-- ✅ Individual employee detail pages
-- ✅ Timesheet and attendance calendar
-- ✅ CSV report export
-- ✅ Real-time activity feed
-- ✅ Apps & URLs breakdown
-- ✅ Performance summaries
-
-## 🛠️ Tech Stack
-
-**Desktop Agent:**
-- Electron (cross-platform app framework)
-- Node.js (runtime)
-- Express (REST API server)
-- active-win (window detection)
-- screenshot-desktop (optional screenshots)
-- @supabase/supabase-js (database sync)
-
-**Web Portal:**
-- Next.js 14 (React framework with App Router)
-- TypeScript (type safety)
-- Tailwind CSS (styling)
-- Recharts (charts and graphs)
-- Lucide React (icons)
-- @supabase/supabase-js (database client)
-
-## 📋 Common Workflows
-
-### Employee: Daily Routine
-1. **Morning:** Open MyZen Agent → Login → Punch In
-2. **Break:** Click "Start Break" → Take break → Click "End Break"
-3. **Evening:** Click "Punch Out" → Close agent (keeps monitoring)
-
-### Manager: Check Team Status
-1. Open web portal: `http://localhost:3000`
-2. Login with manager credentials
-3. View Dashboard for team overview
-4. Click employee name for detailed insights
-5. Go to Reports → Download CSV for analysis
-
-### Admin: Setup New Employee
-1. Add employee to Supabase `employees` table
-2. Provide download link for desktop agent
-3. Share employee credentials
-4. Employee installs and logs in
-5. Attendance + monitoring starts automatically
-
-## 🔧 Troubleshooting
-
-### Desktop Agent Issues
-
-**Agent won't start:**
-- Check Node.js is installed: `node --version`
-- Reinstall dependencies: `npm install`
-- Check logs in terminal
-
-**Can't login:**
-- Verify Supabase connection (if configured)
-- Try demo accounts (works offline)
-- Check employee exists in database
-
-**Activity not tracked:**
-- Windows: Run as administrator
-- macOS: Grant accessibility permissions
-- Linux: Check window detection library
-
-### Web Portal Issues
-
-**Build fails:**
-- Run `npm install` to install dependencies
-- Check Node.js version (16+ required)
-- Clear `.next` folder and rebuild
-
-**No data showing:**
-- Check Supabase environment variables
-- Verify schema is applied
-- Ensure employees have synced data
-- Try mock mode (remove Supabase env vars)
-
-## 📖 Documentation
-
-Detailed documentation available in:
-- `/desktop-agent/README.md` - Desktop agent setup and API
-- `/supabase/schema.sql` - Database schema
-- `/supabase/seed.sql` - Sample data script
-
-## 🚢 Deployment
-
-### Desktop Agent Distribution
-1. Build installers: `npm run build:win` (or :mac, :linux)
-2. Distribute installers to employees
-3. Provide setup instructions
-4. Configure Supabase connection
-
-### Web Portal Hosting
-Deploy to any Node.js host:
-- Vercel (recommended for Next.js)
-- Netlify
-- AWS / Google Cloud / Azure
-- Self-hosted with PM2
-
-Set environment variables on hosting platform.
-
-## 🔄 Next Steps
-
-**Immediate:**
-- [ ] Deploy web portal to production
-- [ ] Distribute desktop agent to team
-- [ ] Add real authentication (B-Arm SSO)
-- [ ] Set up automated backups
-
-**Future:**
-- [ ] Mobile app for remote punch
-- [ ] Advanced analytics and predictions
-- [ ] Custom productivity rules per department
-- [ ] Integration with HR systems
-- [ ] Multi-language support
-
-## 📞 Support
-
-For issues or questions, contact the B-Arm development team.
-
----
-
-**MyZenV2** v0.1 - Employee Productivity & Attendance Platform
