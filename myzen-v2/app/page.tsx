@@ -86,9 +86,9 @@ export default function LoginPage() {
 
           <p className="mt-6 text-center text-sm text-blue-200">
             {mode === 'supabase'
-              ? 'Sign in with a manager account from the employees table.'
+              ? 'Sign in with a manager account. You will see only the employees mapped to you.'
               : mode === 'demo'
-              ? 'Demo mode (Supabase not configured): any credentials are accepted.'
+              ? 'Demo mode (Supabase not configured): any password works. Use manager@barm.in (6 employees) or manager2@barm.in (1 employee).'
               : ''}
           </p>
           <p className="mt-2 text-center text-xs text-blue-300">Employees punch in/out from the MyZen desktop app, not this site.</p>

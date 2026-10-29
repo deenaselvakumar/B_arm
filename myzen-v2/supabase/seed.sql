@@ -3,15 +3,22 @@
 -- Chandru P / Deena Selvakumar: attendance + monthly totals from the Oct 2026 CSV exports.
 -- Other employees are fictional. Emails are placeholders.
 
+-- employees (2 rows)
+insert into employees (id, email, name, department, role, is_manager, manager_id, status) values
+  ('5b1608bc-c8fc-4333-ac47-30cfc0c457f3', 'manager@barm.in', 'B-Arm Manager', 'Management', 'Engineering Manager', true, null, 'offline'),
+  ('498aeb1a-8c33-4982-a3ba-650229d8989b', 'manager2@barm.in', 'Rohan Mehta', 'Management', 'Head of Product', true, null, 'offline')
+on conflict (email) do nothing;
+
+
 -- employees (7 rows)
-insert into employees (id, email, name, department, role, is_manager, status) values
-  ('3c96d6a2-9783-4ab4-a232-72232a9d55ce', 'chandru.p@barm.in', 'Chandru P', 'Engineering', 'Senior Developer', false, 'online'),
-  ('9924e72f-f36a-4c1f-aaea-1057c7850cda', 'deena.s@barm.in', 'Deena Selvakumar', 'Engineering', 'Full Stack Developer', false, 'online'),
-  ('1db0108b-27b2-40c1-af0e-6827fd8be219', 'arun.k@barm.in', 'Arun Kumar', 'AI/ML', 'ML Engineer', false, 'away'),
-  ('3da7d51e-815d-410b-a53b-404dbe04769b', 'priya.s@barm.in', 'Priya Sharma', 'Design', 'UI/UX Designer', false, 'online'),
-  ('a8cfab5e-9e13-4263-a227-6fba2c09a09b', 'vikram.s@barm.in', 'Vikram Singh', 'Product', 'Product Manager', false, 'offline'),
-  ('975d0b5c-1ed3-487f-a59c-819a3feecd5c', 'meera.n@barm.in', 'Meera Nair', 'AI/ML', 'Data Analyst', false, 'online'),
-  ('5b1608bc-c8fc-4333-ac47-30cfc0c457f3', 'manager@barm.in', 'B-Arm Manager', 'Management', 'Engineering Manager', true, 'offline')
+insert into employees (id, email, name, department, role, is_manager, manager_id, status) values
+  ('3c96d6a2-9783-4ab4-a232-72232a9d55ce', 'chandru.p@barm.in', 'Chandru P', 'Engineering', 'Senior Developer', false, '5b1608bc-c8fc-4333-ac47-30cfc0c457f3', 'online'),
+  ('9924e72f-f36a-4c1f-aaea-1057c7850cda', 'deena.s@barm.in', 'Deena Selvakumar', 'Engineering', 'Full Stack Developer', false, '5b1608bc-c8fc-4333-ac47-30cfc0c457f3', 'online'),
+  ('1db0108b-27b2-40c1-af0e-6827fd8be219', 'arun.k@barm.in', 'Arun Kumar', 'AI/ML', 'ML Engineer', false, '5b1608bc-c8fc-4333-ac47-30cfc0c457f3', 'away'),
+  ('3da7d51e-815d-410b-a53b-404dbe04769b', 'priya.s@barm.in', 'Priya Sharma', 'Design', 'UI/UX Designer', false, '5b1608bc-c8fc-4333-ac47-30cfc0c457f3', 'online'),
+  ('a8cfab5e-9e13-4263-a227-6fba2c09a09b', 'vikram.s@barm.in', 'Vikram Singh', 'Product', 'Product Manager', false, '498aeb1a-8c33-4982-a3ba-650229d8989b', 'offline'),
+  ('975d0b5c-1ed3-487f-a59c-819a3feecd5c', 'meera.n@barm.in', 'Meera Nair', 'AI/ML', 'Data Analyst', false, '5b1608bc-c8fc-4333-ac47-30cfc0c457f3', 'online'),
+  ('ea50b8e8-9426-4319-a9e5-2adbd9c5b590', 'riya.menon@barm.in', 'Riya Menon', 'Engineering', 'Associate Engineer', false, '5b1608bc-c8fc-4333-ac47-30cfc0c457f3', 'offline')
 on conflict (email) do nothing;
 
 
@@ -1617,7 +1624,7 @@ insert into activity_sessions (id, employee_id, start_time, end_time, app_name, 
 on conflict (id) do nothing;
 
 
--- DEMO PASSWORDS. Everyone gets "myzen123" so the desktop app and manager login work out of the box.
+-- DEMO PASSWORDS. Everyone gets "myzen123" (except the new hire riya.menon@barm.in = "Welcome@123") so the desktop app and manager login work out of the box.
 -- DELETE THIS BLOCK or change the passwords (select set_employee_password(email, ...)) before exposing the portal publicly.
 select set_employee_password('chandru.p@barm.in', 'myzen123');
 select set_employee_password('deena.s@barm.in', 'myzen123');
@@ -1625,4 +1632,6 @@ select set_employee_password('arun.k@barm.in', 'myzen123');
 select set_employee_password('priya.s@barm.in', 'myzen123');
 select set_employee_password('vikram.s@barm.in', 'myzen123');
 select set_employee_password('meera.n@barm.in', 'myzen123');
+select set_employee_password('riya.menon@barm.in', 'Welcome@123');
 select set_employee_password('manager@barm.in', 'myzen123');
+select set_employee_password('manager2@barm.in', 'myzen123');

@@ -8,6 +8,7 @@ export interface EmployeeRow {
   department: string | null
   role: string | null
   is_manager: boolean
+  manager_id: string | null
   status: Presence
   last_seen: string | null
 }
@@ -73,6 +74,7 @@ export interface Snapshot {
   today: string
   presence: Record<string, Presence>
   config: { screenshotsEnabled: boolean; idleThresholdSeconds: number }
+  manager: { id: string; name: string; email: string }
   employees: EmployeeRow[]
   dailyStats: DailyStatRow[]
   punches: PunchRow[]

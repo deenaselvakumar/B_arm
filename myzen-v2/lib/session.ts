@@ -14,8 +14,10 @@ async function sign(payload: string) {
   return b64url(await crypto.subtle.sign('HMAC', key, enc.encode(payload)))
 }
 
-export async function createSessionToken(email: string) {
-  const payload = b64url(enc.encode(JSON.stringify({ email, exp: Date.now() + MAX_AGE_SECONDS * 1000 })))
+export interface SessionUser { sub: string; email: string; name: string; exp: number }
+
+export async function createSessionToken(user: { sub: string; email: string; name: string }) {
+  const payload = b64url(enc.encode(JSON.stringify({ ...user, exp: Date.now() + MAX_AGE_SECONDS * 1000 })))
   return `${payload}.${await sign(payload)}`
 }
 
@@ -25,7 +27,7 @@ export async function verifySessionToken(token: string | undefined) {
   if (!payload || !sig || (await sign(payload)) !== sig) return null
   try {
     const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
-    return json.exp > Date.now() ? (json as { email: string; exp: number }) : null
+    return json.exp > Date.now() && json.sub ? (json as SessionUser) : null
   } catch {
     return null
   }

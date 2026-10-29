@@ -79,18 +79,23 @@ const team = [
     apps: [['Notion', 0.5], ['Excel', 0.3], ['Figma', 0.2]], sites: ['linear.app', 'docs.google.com'] },
   { key: 'meera', name: 'Meera Nair', email: 'meera.n@barm.in', department: 'AI/ML', role: 'Data Analyst', status: 'online', target: 79, avgH: 8.6,
     apps: [['Excel', 0.4], ['Jupyter Notebook', 0.4], ['Power BI', 0.2]], sites: ['kaggle.com', 'github.com'] },
+  // New hire with no activity yet: lets you try "first login on a fresh PC" (password below, not myzen123).
+  { key: 'riya', name: 'Riya Menon', email: 'riya.menon@barm.in', department: 'Engineering', role: 'Associate Engineer', status: 'offline', noActivity: true, password: 'Welcome@123' },
   { key: 'manager', name: 'B-Arm Manager', email: 'manager@barm.in', department: 'Management', role: 'Engineering Manager', status: 'offline', isManager: true },
+  { key: 'manager2', name: 'Rohan Mehta', email: 'manager2@barm.in', department: 'Management', role: 'Head of Product', status: 'offline', isManager: true },
 ]
+// manager mapping: manager@barm.in manages everyone except Vikram, who reports to manager2@barm.in
+const managerOf = (t) => (t.isManager ? null : t.key === 'vikram' ? 'manager2' : 'manager')
 const neutralApps = ['Slack', 'Microsoft Teams', 'Outlook']
 const badSites = ['youtube.com', 'instagram.com', 'reddit.com']
 
 const employees = team.map((t) => ({
   id: uid(t.key), email: t.email, name: t.name, department: t.department, role: t.role,
-  is_manager: !!t.isManager, status: t.status, last_seen: null,
+  is_manager: !!t.isManager, manager_id: managerOf(t) ? uid(managerOf(t)) : null, status: t.status, last_seen: null,
 }))
 const punches = [], breaks = [], timesheet = [], dailyStats = [], sessions = []
 
-for (const t of team.filter((x) => !x.isManager)) {
+for (const t of team.filter((x) => !x.isManager && !x.noActivity)) {
   const id = uid(t.key)
   // 1) attendance minutes per day
   const att = {}
@@ -214,15 +219,16 @@ const sql = [
   '-- Chandru P / Deena Selvakumar: attendance + monthly totals from the Oct 2026 CSV exports.',
   '-- Other employees are fictional. Emails are placeholders.',
   '',
-  insert('employees', employees.map(({ last_seen, ...r }) => r), 'on conflict (email) do nothing'),
+  insert('employees', employees.filter((e) => e.is_manager).map(({ last_seen, ...r }) => r), 'on conflict (email) do nothing'),
+  insert('employees', employees.filter((e) => !e.is_manager).map(({ last_seen, ...r }) => r), 'on conflict (email) do nothing'),
   insert('attendance_punches', punches),
   insert('breaks', breaks),
   insert('timesheet_entries', timesheet),
   insert('daily_stats', dailyStats, 'on conflict (employee_id, stat_date) do nothing'),
   insert('activity_sessions', sessions),
-  '-- DEMO PASSWORDS. Everyone gets "myzen123" so the desktop app and manager login work out of the box.',
+  '-- DEMO PASSWORDS. Everyone gets "myzen123" (except the new hire riya.menon@barm.in = "Welcome@123") so the desktop app and manager login work out of the box.',
   '-- DELETE THIS BLOCK or change the passwords (select set_employee_password(email, ...)) before exposing the portal publicly.',
-  ...employees.map((e) => `select set_employee_password('${e.email}', 'myzen123');`),
+  ...employees.map((e) => `select set_employee_password('${e.email}', '${team.find((t) => t.email === e.email).password || 'myzen123'}');`),
   '',
 ].join('\n')
 writeFileSync(join(root, 'supabase/seed.sql'), sql)

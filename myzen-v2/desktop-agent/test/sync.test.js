@@ -150,8 +150,14 @@ test('screenshot metadata syncs only when the org switch is on; images never lea
   assert.equal(await c.core.screenshots.maybeCapture(), null)
   assert.match(c.core.screenshots.policy().reason, /org policy/)
 
-  // org switch ON
+  // org switch ON but this team not allowed yet
   await db.exec(`update system_config set config_value = 'true' where config_key = 'screenshots_enabled'`)
+  c = mk()
+  await c.core.login('deena.s@barm.in', 'secret-pw')
+  assert.match(c.core.screenshots.policy().reason, /not allowed by org policy/)
+
+  // team allowed
+  await db.exec(`update system_config set config_value = '["Engineering"]' where config_key = 'screenshot_teams'`)
   c = mk()
   await c.core.login('deena.s@barm.in', 'secret-pw')
   if (!c.core.state().punchedIn) c.core.punch('in')
@@ -166,7 +172,14 @@ test('screenshot metadata syncs only when the org switch is on; images never lea
   await c.core.syncNow()
   assert.equal((await q(`select count(*)::int c from screenshots`))[0].c, 1, 'idempotent')
 
-  // a tampered agent cannot push rows while the switch is OFF
+  // a tampered agent cannot push rows for a team that is not allowed, or while the switch is OFF
+  await db.exec(`update system_config set config_value = '["Design"]' where config_key = 'screenshot_teams'`)
+  c = mk()
+  await c.core.login('deena.s@barm.in', 'secret-pw')
+  c.core.store.addScreenshot({ id: '00000000-0000-4000-8000-0000000000ab', time: Date.now(), file: 'x.png', app: 'x' })
+  await c.core.syncNow()
+  assert.equal((await q(`select count(*)::int c from screenshots`))[0].c, 1, 'team not allowed -> ignored')
+  await db.exec(`update system_config set config_value = '["Engineering"]' where config_key = 'screenshot_teams'`)
   await db.exec(`update system_config set config_value = 'false' where config_key = 'screenshots_enabled'`)
   c = mk()
   await c.core.login('deena.s@barm.in', 'secret-pw')

@@ -249,6 +249,7 @@ function renderSettings() {
     ['Computer', st.machine],
     ['Screenshots', sh.enabled ? `ON every ${sh.intervalMinutes} min while working (${sh.todayCount} today)` : `Off (${sh.reason || 'default'})`],
   ]
+  if (sh.enabled && sh.upload) rows.push(['Screenshot upload', !sh.upload.configured ? 'Metadata only (MYZEN_PORTAL_URL not set)' : `${sh.upload.uploaded} uploaded, ${sh.upload.waiting} waiting${sh.upload.failed ? `, ${sh.upload.failed} rejected` : ''}`])
   $('settingsRows').innerHTML = rows.map(([k, v]) => `<div class="kv"><span>${esc(k)}</span><span>${esc(v)}</span></div>`).join('')
 }
 

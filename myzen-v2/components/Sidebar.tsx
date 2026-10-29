@@ -9,6 +9,8 @@ import {
   Activity, 
   BarChart3, 
   LogOut,
+  Camera,
+  UserPlus,
   Menu,
   X
 } from 'lucide-react'
@@ -30,6 +32,8 @@ export default function Sidebar({ children }: SidebarProps) {
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
     { name: 'Reports', href: '/reports', icon: FileText },
     { name: 'User Detail', href: '/user-detail', icon: Users },
+    { name: 'Screenshots', href: '/screenshots', icon: Camera },
+    { name: 'Employees', href: '/employees', icon: UserPlus },
   ]
 
   const { snap } = useSnapshot()
@@ -105,6 +109,7 @@ export default function Sidebar({ children }: SidebarProps) {
           </nav>
 
           <div className="p-4 border-t border-gray-200 space-y-3">
+            {snap && <p className="text-xs text-gray-500 px-1">Signed in as <b className="text-gray-700">{snap.manager.name}</b></p>}
             {snap && (
               <div className={`text-xs px-3 py-2 rounded-lg ${snap.mode === 'supabase' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
                 {snap.mode === 'supabase' ? 'Live: Supabase connected' : 'Demo data (Supabase not configured)'}

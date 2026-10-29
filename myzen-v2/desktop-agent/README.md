@@ -30,12 +30,12 @@ Without Electron (servers, CI, trying it on Linux/WSL):
 ```bash
 npm run simulate            # fake activity, 6-20 s phases; open http://127.0.0.1:3001/ui
 npm run start:headless      # real window/idle sampling, no Electron
-npm test                    # 15 tests; verified on Node 18, 20 and 22, incl. real sync against schema.sql in an in-process Postgres
+npm test                    # 17 tests; verified on Node 18, 20 and 22, incl. real sync against schema.sql in an in-process Postgres
 ```
 
-Demo mode (no Supabase vars): log in with `deena.s@barm.in`, `chandru.p@barm.in`, `arun.k@barm.in`, `priya.s@barm.in`, `vikram.s@barm.in` or `meera.n@barm.in` and any password. Data never leaves the PC.
+Demo mode (no Supabase vars): log in with `deena.s@barm.in`, `chandru.p@barm.in`, `arun.k@barm.in`, `priya.s@barm.in`, `vikram.s@barm.in`, `meera.n@barm.in` or the new hire `riya.menon@barm.in` and any password. With the Supabase seed the passwords are `myzen123` (Riya: `Welcome@123`); new employees are added by a manager (portal **Employees** page) or with `add_employee(...)` in SQL. Data never leaves the PC.
 
-Live mode: set `SUPABASE_URL` and `SUPABASE_ANON_KEY` (the **anon** key only; never the service-role key). Run `supabase/schema.sql` first and create employees with passwords (see the top-level README).
+Live mode: set `SUPABASE_URL` and `SUPABASE_ANON_KEY` (the **anon** key only; never the service-role key), and optionally `MYZEN_PORTAL_URL` for screenshot upload. Run `supabase/schema.sql` first and create employees with passwords (see the top-level README).
 
 **Runtime:** Electron 27 bundles Node 18, and the headless mode works on Node 18+. The agent talks to Supabase with plain `fetch` (PostgREST RPC) and deliberately does not use `@supabase/supabase-js`, whose Realtime client needs a native WebSocket (Node 22+) and crashed startup on older runtimes.
 
@@ -75,20 +75,19 @@ An activity log is one stretch in one app (and site host). A new log starts when
 
 ## Screenshots (OFF by default)
 
-Nothing is captured unless **all three** are true:
+Nothing is captured unless **all** are true:
 
 1. `ENABLE_SCREENSHOTS=true` in the agent's `.env`,
-2. `system_config.screenshots_enabled = 'true'` in Supabase (demo mode: not applicable),
-3. the employee's department is in `SCREENSHOT_TEAMS` (comma list, `*` = all) or in `system_config.screenshot_teams` (JSON array).
+2. Supabase mode: `system_config.screenshots_enabled = 'true'` **and** the employee's department is in `system_config.screenshot_teams` (JSON array, `"*"` = all). The org settings are authoritative; `SCREENSHOT_TEAMS` on the PC can only narrow them. Demo mode: the PC's `SCREENSHOT_TEAMS` list (comma separated, `*` = all) is the only allowlist.
 
-When enabled, the agent captures one screenshot per interval (`SCREENSHOT_INTERVAL_MINUTES`, else `system_config.screenshot_interval_minutes`, else 10) **only while punched in and not on break**. The image is saved under `<data folder>/screenshots/` and pruned after 7 days. **Only metadata** (time, foreground app, file name) is queued and synced to the Supabase `screenshots` table; the server ignores those rows unless the org switch is on. The window shows today's capture count; the settings screen shows why screenshots are on or off.
+When enabled, the agent captures one screenshot per interval (`SCREENSHOT_INTERVAL_MINUTES`, else `system_config.screenshot_interval_minutes`, else 10) **only while punched in and not on break**, and saves it under `<data folder>/screenshots/`. Metadata (time, foreground app, file name) syncs to the `screenshots` table. If `MYZEN_PORTAL_URL` is set, the image itself is also uploaded to the portal (`/api/agent/screenshot`, authenticated with the agent token), which stores it in a private Supabase Storage bucket for the employee's mapped manager; on success the local copy is deleted. Network and 5xx errors retry; 400/403/409/413/415/429 are treated as permanent rejections (shown as "rejected" in Settings). Without `MYZEN_PORTAL_URL`, images stay local (pruned after 7 days) and only metadata syncs. The window shows today's capture count; Settings shows why screenshots are on or off and the upload state.
 
 ```bash
 # try it with the simulator (writes a 1x1 placeholder image, no display needed)
 ENABLE_SCREENSHOTS=true SCREENSHOT_TEAMS='*' SCREENSHOT_INTERVAL_MINUTES=1 npm run simulate
 ```
 
-**Not implemented, so do not enable for real use yet:** uploading the image to a private Storage bucket (so managers cannot view images; `storage_path` stays null, `uploaded=false`), blur/redaction (`blurred=false`), an employee notice/consent record, and a manager viewer. Real capture uses the optional `screenshot-desktop` package, which was not exercised here (tests inject a fake capturer).
+**Not implemented, so do not enable for real use yet:** blur/redaction, an employee notice/consent record, and automatic retention of stored images. Real capture uses the optional `screenshot-desktop` package, which was not exercised here (tests inject a fake capturer). See the top-level README for the manager side.
 
 ## Security notes
 

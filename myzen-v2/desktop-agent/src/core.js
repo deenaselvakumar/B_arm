@@ -26,6 +26,8 @@ function createCore({ dir, settings, source, now = () => Date.now() }) {
     isTracking: () => store.isTracking(),
   })
 
+  const pendingTotal = () => store.pendingCount() + (settings.portalUrl && live() ? screenshots.uploadStatus().waiting : 0)
+
   let syncing = null
   let syncSoonTimer = null
   let currentStatus = null
@@ -63,6 +65,7 @@ function createCore({ dir, settings, source, now = () => Date.now() }) {
           return { error }
         }
         store.markSynced(batch)
+        await screenshots.uploadPending(store.session.token).catch(() => {})
         currentStatus = payload.status
         lastSync.at = now()
         lastSync.error = null
@@ -116,7 +119,7 @@ function createCore({ dir, settings, source, now = () => Date.now() }) {
       monitor.closeCurrent()
       if (live() && store.session?.token && !store.session.expired) {
         await syncNow('offline')
-        const pending = store.pendingCount()
+        const pending = pendingTotal()
         if (pending > 0 && !force) {
           const e = new RuleError(`${pending} item(s) have not synced yet. Connect to the internet and try again, or log out anyway and lose them.`, 409)
           e.pending = pending
@@ -148,7 +151,7 @@ function createCore({ dir, settings, source, now = () => Date.now() }) {
         totals: store.employee ? store.dayTotals() : { workedMs: 0, breakMs: 0 },
         logCount: store.employee ? monitor.getLogs().count : 0,
         current: store.isTracking() ? monitor.currentActivity() : null,
-        pending: store.pendingCount(),
+        pending: pendingTotal(),
         sync: { ...lastSync, expired: !!store.session?.expired },
         screenshots: screenshots.summary(),
         serverTime: now(),

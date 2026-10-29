@@ -13,6 +13,7 @@ const DEMO_ACCOUNTS = [
   ['priya', 'Priya Sharma', 'priya.s@barm.in', 'Design', 'UI/UX Designer'],
   ['vikram', 'Vikram Singh', 'vikram.s@barm.in', 'Product', 'Product Manager'],
   ['meera', 'Meera Nair', 'meera.n@barm.in', 'AI/ML', 'Data Analyst'],
+  ['riya', 'Riya Menon', 'riya.menon@barm.in', 'Engineering', 'Associate Engineer'],
 ].map(([key, name, email, department, role]) => ({ id: uid(key), name, email, department, role }))
 
 module.exports = { DEMO_ACCOUNTS }

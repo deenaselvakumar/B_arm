@@ -26,6 +26,10 @@ create table if not exists employees (
   updated_at    timestamptz not null default now()
 );
 
+-- Manager mapping: a manager sees reports and screenshots only for employees whose manager_id is theirs.
+alter table employees add column if not exists manager_id uuid references employees(id) on delete set null;
+create index if not exists employees_manager_id on employees (manager_id);
+
 -- ------------------------------------------------- activity sessions (agent)
 -- One row per contiguous stretch in one app/URL. Contains app name + optional URL only, never keystrokes.
 create table if not exists activity_sessions (
@@ -191,6 +195,55 @@ begin
   end if;
 end $$;
 
+-- Adds an employee (and their login). The portal's Employees page and the SQL editor both use this.
+-- p_manager_email maps the employee to a manager (must be an existing is_manager account).
+create or replace function add_employee(
+  p_email text, p_name text, p_department text, p_role text, p_password text,
+  p_manager_email text default null, p_is_manager boolean default false
+) returns uuid
+language plpgsql security definer set search_path = public, extensions as $$
+declare mgr uuid; new_id uuid; em text := lower(btrim(p_email));
+begin
+  if em !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then raise exception 'invalid_email'; end if;
+  if btrim(coalesce(p_name, '')) = '' then raise exception 'name_required'; end if;
+  if length(coalesce(p_password, '')) < 8 then raise exception 'password_too_short'; end if;
+  if p_manager_email is not null then
+    select id into mgr from employees where lower(email) = lower(btrim(p_manager_email)) and is_manager;
+    if mgr is null then raise exception 'manager_not_found'; end if;
+  end if;
+  if exists (select 1 from employees where lower(email) = em) then raise exception 'employee_exists'; end if;
+  insert into employees (email, name, department, role, is_manager, manager_id, password_hash)
+  values (em, btrim(p_name), nullif(btrim(coalesce(p_department, '')), ''), nullif(btrim(coalesce(p_role, '')), ''),
+          coalesce(p_is_manager, false), mgr, crypt(p_password, gen_salt('bf', 10)))
+  returning id into new_id;
+  return new_id;
+end $$;
+
+do $$
+begin
+  revoke all on function add_employee(text, text, text, text, text, text, boolean) from public;
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    revoke all on function add_employee(text, text, text, text, text, text, boolean) from anon;
+  end if;
+  if exists (select 1 from pg_roles where rolname = 'authenticated') then
+    revoke all on function add_employee(text, text, text, text, text, text, boolean) from authenticated;
+  end if;
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    grant execute on function add_employee(text, text, text, text, text, text, boolean) to service_role;
+  end if;
+end $$;
+
+-- Private Storage bucket for screenshots. Nothing is public and no storage policies are created, so only the
+-- portal's service-role key can read or write objects. (Skipped when the storage schema is absent, e.g. plain Postgres.)
+do $$
+begin
+  if exists (select 1 from information_schema.schemata where schema_name = 'storage') then
+    insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+    values ('screenshots', 'screenshots', false, 3145728, array['image/png', 'image/jpeg'])
+    on conflict (id) do update set public = false, file_size_limit = 3145728, allowed_mime_types = array['image/png', 'image/jpeg'];
+  end if;
+end $$;
+
 -- ----------------------------------------------------------------- defaults
 insert into system_config (config_key, config_value, description) values
   ('screenshots_enabled',         'false', 'Master switch for screenshot capture. Keep false unless policy is approved.'),
@@ -270,6 +323,18 @@ language sql security definer set search_path = public, extensions as $$
   delete from agent_tokens where token_hash = encode(digest(p_token, 'sha256'), 'hex');
 $$;
 
+-- True when the org's team allowlist (system_config.screenshot_teams, a JSON array; "*" = everyone) covers the employee.
+create or replace function screenshots_allowed(p_employee uuid) returns boolean
+language plpgsql stable security definer set search_path = public, extensions as $$
+declare teams jsonb; dept text;
+begin
+  select coalesce(nullif(config_value, '')::jsonb, '[]'::jsonb) into teams from system_config where config_key = 'screenshot_teams';
+  select department into dept from employees where id = p_employee;
+  return coalesce(teams ? '*' or (dept is not null and teams ? dept), false);
+exception when others then
+  return false;
+end $$;
+
 create or replace function agent_sync(p_token text, p_payload jsonb) returns jsonb
 language plpgsql security definer set search_path = public, extensions as $$
 declare emp uuid := agent_employee(p_token); s jsonb;
@@ -305,7 +370,8 @@ begin
     from jsonb_array_elements(coalesce(p_payload->'sessions', '[]')) x
   on conflict (id) do nothing;
 
-  if coalesce((select config_value from system_config where config_key = 'screenshots_enabled'), 'false') = 'true' then
+  if coalesce((select config_value from system_config where config_key = 'screenshots_enabled'), 'false') = 'true'
+     and screenshots_allowed(emp) then
     insert into screenshots (id, employee_id, captured_at, app_name, local_file, storage_path, uploaded, blurred)
       select (x->>'id')::uuid, emp, (x->>'time')::timestamptz, left(x->>'app', 200), left(x->>'file', 200), null, false, false
       from jsonb_array_elements(coalesce(p_payload->'screenshots', '[]')) x
@@ -348,7 +414,7 @@ do $$
 declare f text;
 begin
   foreach f in array array[
-    'agent_login(text,text,text)', 'agent_employee(text)', 'agent_logout(text)', 'agent_sync(text,jsonb)', 'agent_history(text,int)'
+    'agent_login(text,text,text)', 'agent_employee(text)', 'screenshots_allowed(uuid)', 'agent_logout(text)', 'agent_sync(text,jsonb)', 'agent_history(text,int)'
   ] loop
     -- Supabase's default privileges grant EXECUTE to anon/authenticated on new functions, so revoke explicitly first.
     execute format('revoke all on function %s from public', f);
@@ -358,8 +424,8 @@ begin
     if exists (select 1 from pg_roles where rolname = 'authenticated') then
       execute format('revoke all on function %s from authenticated', f);
     end if;
-    -- agent_employee is internal: only the security-definer functions above call it.
-    if f <> 'agent_employee(text)' then
+    -- agent_employee and screenshots_allowed are internal: only the security-definer functions above call it.
+    if f not in ('agent_employee(text)', 'screenshots_allowed(uuid)') then
       if exists (select 1 from pg_roles where rolname = 'anon') then execute format('grant execute on function %s to anon', f); end if;
       if exists (select 1 from pg_roles where rolname = 'authenticated') then execute format('grant execute on function %s to authenticated', f); end if;
     end if;

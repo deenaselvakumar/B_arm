@@ -3,10 +3,11 @@
 import { useState } from 'react'
 import { Mail, Briefcase, Calendar, TrendingUp, Clock, Activity } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import ScreenshotGallery from '@/components/ScreenshotGallery'
 import { Loading, useSnapshot } from '@/components/SnapshotProvider'
 import { appUsage, buildTimesheet, fmtHM, fmtMin, initials, isSunday, istTime, liveState, monthDates, monthLabel, monthTotals, pct, staff } from '@/lib/derive'
 
-const TABS = ['Overview', 'Attendance', 'Timesheet', 'Productivity', 'Apps & URLs', 'Performance Summary', 'Settings'] as const
+const TABS = ['Overview', 'Attendance', 'Timesheet', 'Productivity', 'Apps & URLs', 'Performance Summary', 'Screenshots', 'Settings'] as const
 type Tab = (typeof TABS)[number]
 const TONE: Record<string, { box: string; label: string; value: string }> = {
   blue: { box: 'bg-blue-50', label: 'text-blue-700', value: 'text-blue-900' },
@@ -213,6 +214,8 @@ export default function UserDetailPage() {
               ))}
             </div>
           )}
+
+          {tab === 'Screenshots' && <ScreenshotGallery employeeId={emp.id} />}
 
           {tab === 'Settings' && (
             <dl className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">

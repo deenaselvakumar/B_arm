@@ -24,6 +24,7 @@ function settings() {
   return {
     supabaseUrl: env('SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL'),
     supabaseAnonKey: env('SUPABASE_ANON_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY'),
+    portalUrl: (process.env.MYZEN_PORTAL_URL || '').replace(/\/+$/, ''),
     port: Number(process.env.AGENT_PORT || 3001),
     timezone: process.env.AGENT_TIMEZONE || 'Asia/Kolkata',
     idleThresholdSeconds: Number(process.env.IDLE_THRESHOLD_SECONDS || 120),
