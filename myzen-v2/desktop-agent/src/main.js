@@ -2,11 +2,14 @@ const { app, BrowserWindow, Tray, Menu, nativeImage } = require('electron')
 const path = require('path')
 const ActivityMonitor = require('./monitor')
 const DataServer = require('./server')
+const ScreenshotManager = require('./screenshots')
+const { initSupabase, isSupabaseEnabled } = require('./supabase')
 
 let tray = null
 let mainWindow = null
 let monitor = null
 let server = null
+let screenshotManager = null
 
 function createTray() {
   const icon = nativeImage.createEmpty()
@@ -19,7 +22,7 @@ function createTray() {
     },
     { type: 'separator' },
     { 
-      label: 'Status: Running', 
+      label: `Status: Running${isSupabaseEnabled() ? ' (Synced)' : ' (Local)'}`, 
       enabled: false 
     },
     { 
@@ -65,14 +68,31 @@ function showDashboard() {
 app.whenReady().then(() => {
   createTray()
   
+  initSupabase()
+  
   monitor = new ActivityMonitor()
   monitor.start()
   
-  server = new DataServer(monitor)
+  screenshotManager = new ScreenshotManager()
+  if (screenshotManager.isEnabled()) {
+    screenshotManager.startAutoCapture(
+      process.env.EMPLOYEE_ID,
+      () => monitor.currentSession
+    )
+  } else {
+    console.log('Screenshots DISABLED (privacy-first default)')
+  }
+  
+  server = new DataServer(monitor, screenshotManager)
   server.start()
 
   console.log('MyZen Agent started successfully')
   console.log('API Server running on http://localhost:3001')
+  if (isSupabaseEnabled()) {
+    console.log('Supabase sync: ENABLED')
+  } else {
+    console.log('Supabase sync: DISABLED (local storage only)')
+  }
 })
 
 app.on('window-all-closed', (e) => {
@@ -82,6 +102,9 @@ app.on('window-all-closed', (e) => {
 app.on('before-quit', () => {
   if (monitor) {
     monitor.stop()
+  }
+  if (screenshotManager) {
+    screenshotManager.stopAutoCapture()
   }
   if (server) {
     server.stop()

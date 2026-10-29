@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MyZen Agent Dashboard</title>
+  <title>MyZen Agent</title>
   <style>
     * {
       margin: 0;
@@ -14,35 +14,133 @@
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      padding: 20px;
       color: #333;
+      overflow: hidden;
     }
     
     .container {
-      max-width: 500px;
-      margin: 0 auto;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .card {
       background: white;
       border-radius: 16px;
-      padding: 24px;
+      padding: 32px;
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 500px;
+      width: 100%;
     }
     
-    h1 {
-      font-size: 24px;
+    /* Login Screen */
+    #loginScreen h1 {
+      font-size: 28px;
       margin-bottom: 8px;
       color: #667eea;
+      text-align: center;
     }
     
-    .subtitle {
+    #loginScreen .subtitle {
       color: #666;
+      margin-bottom: 32px;
+      font-size: 14px;
+      text-align: center;
+    }
+    
+    .input-group {
+      margin-bottom: 20px;
+    }
+    
+    .input-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #555;
+      margin-bottom: 8px;
+    }
+    
+    .input-group input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+    
+    .input-group input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    
+    .btn {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    
+    .btn:hover {
+      transform: translateY(-2px);
+    }
+    
+    .btn:active {
+      transform: translateY(0);
+    }
+    
+    .btn-secondary {
+      background: #48bb78;
+      margin-top: 12px;
+    }
+    
+    .btn-danger {
+      background: #f56565;
+    }
+    
+    .btn-warning {
+      background: #ed8936;
+    }
+    
+    .btn-info {
+      background: #4299e1;
+    }
+    
+    /* Attendance Screen */
+    #attendanceScreen {
+      display: none;
+    }
+    
+    .header {
+      text-align: center;
       margin-bottom: 24px;
+      padding-bottom: 24px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    
+    .header h2 {
+      font-size: 24px;
+      color: #2d3748;
+      margin-bottom: 4px;
+    }
+    
+    .header p {
+      color: #718096;
       font-size: 14px;
     }
     
-    .stat-grid {
+    .stats-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 16px;
+      gap: 12px;
       margin-bottom: 24px;
     }
     
@@ -51,6 +149,15 @@
       color: white;
       padding: 16px;
       border-radius: 12px;
+      text-align: center;
+    }
+    
+    .stat-card.green {
+      background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+    }
+    
+    .stat-card.orange {
+      background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);
     }
     
     .stat-label {
@@ -60,160 +167,360 @@
     }
     
     .stat-value {
-      font-size: 28px;
+      font-size: 24px;
       font-weight: bold;
     }
     
-    .current-activity {
-      background: #f7fafc;
-      padding: 16px;
-      border-radius: 12px;
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
       margin-bottom: 16px;
     }
     
-    .current-activity h3 {
+    .controls .btn {
+      padding: 16px;
       font-size: 14px;
-      margin-bottom: 12px;
-      color: #4a5568;
     }
     
-    .activity-info {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    
-    .app-name {
-      font-weight: 600;
-      color: #2d3748;
-    }
-    
-    .category {
-      padding: 4px 12px;
-      border-radius: 12px;
-      font-size: 12px;
+    .status-badge {
+      padding: 12px;
+      border-radius: 8px;
+      text-align: center;
+      font-size: 13px;
+      margin-bottom: 16px;
       font-weight: 600;
     }
     
-    .category.productive {
+    .status-badge.success {
       background: #c6f6d5;
       color: #22543d;
     }
     
-    .category.neutral {
-      background: #e2e8f0;
-      color: #2d3748;
+    .status-badge.warning {
+      background: #feebc8;
+      color: #7c2d12;
     }
     
-    .category.unproductive {
-      background: #fed7d7;
-      color: #742a2a;
+    .status-badge.info {
+      background: #bee3f8;
+      color: #2c5282;
     }
     
-    .footer {
+    .hidden {
+      display: none !important;
+    }
+    
+    .demo-hint {
       text-align: center;
-      color: #718096;
       font-size: 12px;
-    }
-    
-    .status-dot {
-      display: inline-block;
-      width: 8px;
-      height: 8px;
-      background: #48bb78;
-      border-radius: 50%;
-      margin-right: 6px;
-      animation: pulse 2s infinite;
-    }
-    
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
+      color: #a0aec0;
+      margin-top: 16px;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>MyZen Agent</h1>
-    <p class="subtitle">
-      <span class="status-dot"></span>
-      Monitoring Active
-    </p>
-    
-    <div class="stat-grid">
-      <div class="stat-card">
-        <div class="stat-label">Online Time</div>
-        <div class="stat-value" id="onlineTime">0h 0m</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Productivity</div>
-        <div class="stat-value" id="productivity">0%</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Active Time</div>
-        <div class="stat-value" id="activeTime">0h 0m</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Productive Time</div>
-        <div class="stat-value" id="productiveTime">0h 0m</div>
-      </div>
-    </div>
-    
-    <div class="current-activity">
-      <h3>Current Activity</h3>
-      <div class="activity-info">
-        <div>
-          <div class="app-name" id="appName">Idle</div>
-          <div id="appUrl" style="font-size: 12px; color: #718096; margin-top: 4px;"></div>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="card">
+      <h1>MyZen Agent</h1>
+      <p class="subtitle">Employee Attendance & Monitoring</p>
+      
+      <form id="loginForm">
+        <div class="input-group">
+          <label for="email">Email Address</label>
+          <input type="email" id="email" placeholder="your.email@barm.in" required>
         </div>
-        <span class="category neutral" id="category">idle</span>
-      </div>
+        
+        <div class="input-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="Enter password" required>
+        </div>
+        
+        <button type="submit" class="btn">Sign In</button>
+      </form>
+      
+      <p class="demo-hint">Demo: chandru.p@barm.in or deena.s@barm.in</p>
     </div>
-    
-    <div class="footer">
-      MyZen Agent v0.1 • B-Arm India<br>
-      API: http://localhost:3001
+
+    <!-- Attendance Screen -->
+    <div id="attendanceScreen" class="card">
+      <div class="header">
+        <h2 id="employeeName">Employee Name</h2>
+        <p id="employeeRole">Role</p>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Current Time</div>
+          <div class="stat-value" id="currentTime">00:00:00</div>
+        </div>
+        <div class="stat-card green">
+          <div class="stat-label">Working Time</div>
+          <div class="stat-value" id="workingTime">0h 0m</div>
+        </div>
+        <div class="stat-card orange">
+          <div class="stat-label">Break Time</div>
+          <div class="stat-value" id="breakTime">0m</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Productivity</div>
+          <div class="stat-value" id="productivity">0%</div>
+        </div>
+      </div>
+
+      <div id="statusBadge" class="status-badge info hidden"></div>
+
+      <div class="controls">
+        <button id="punchInBtn" class="btn btn-secondary">Punch In</button>
+        <button id="punchOutBtn" class="btn btn-danger hidden">Punch Out</button>
+        <button id="startBreakBtn" class="btn btn-warning">Start Break</button>
+        <button id="endBreakBtn" class="btn btn-info hidden">End Break</button>
+      </div>
+
+      <button id="logoutBtn" class="btn" style="background: #718096; margin-top: 8px;">Logout</button>
     </div>
   </div>
-  
+
   <script>
-    function formatDuration(minutes) {
-      const hours = Math.floor(minutes / 60)
-      const mins = Math.floor(minutes % 60)
-      return `${hours}h ${mins}m`
-    }
-    
-    async function updateStats() {
+    let currentEmployee = null
+    let isPunchedIn = false
+    let isOnBreak = false
+    let lastPunchIn = null
+    let breakStartTime = null
+    let statsInterval = null
+
+    // Login handling
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault()
+      
+      const email = document.getElementById('email').value
+      const password = document.getElementById('password').value
+
       try {
-        const statsRes = await fetch('http://localhost:3001/api/stats')
-        const stats = await statsRes.json()
-        
-        document.getElementById('onlineTime').textContent = formatDuration(stats.onlineTime)
-        document.getElementById('activeTime').textContent = formatDuration(stats.activeTime)
-        document.getElementById('productiveTime').textContent = formatDuration(stats.productiveTime)
-        document.getElementById('productivity').textContent = stats.productivity + '%'
-        
-        const currentRes = await fetch('http://localhost:3001/api/current')
-        const current = await currentRes.json()
-        
-        if (current.status === 'idle') {
-          document.getElementById('appName').textContent = 'Idle'
-          document.getElementById('appUrl').textContent = ''
-          document.getElementById('category').textContent = 'idle'
-          document.getElementById('category').className = 'category neutral'
+        const response = await fetch('http://localhost:3001/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        })
+
+        const data = await response.json()
+
+        if (data.success) {
+          currentEmployee = data.employee
+          showAttendanceScreen()
         } else {
-          document.getElementById('appName').textContent = current.appName
-          document.getElementById('appUrl').textContent = current.url || ''
-          document.getElementById('category').textContent = current.category
-          document.getElementById('category').className = `category ${current.category}`
+          alert('Invalid credentials')
         }
       } catch (error) {
-        console.error('Error updating stats:', error)
+        alert('Login failed. Make sure the agent is running.')
+      }
+    })
+
+    function showAttendanceScreen() {
+      document.getElementById('loginScreen').classList.add('hidden')
+      document.getElementById('attendanceScreen').classList.remove('hidden')
+      
+      document.getElementById('employeeName').textContent = currentEmployee.name
+      document.getElementById('employeeRole').textContent = currentEmployee.role
+
+      loadAttendanceStatus()
+      startStatsUpdate()
+    }
+
+    async function loadAttendanceStatus() {
+      // Check if already punched in today
+      // This would query Supabase or local storage
+      updateUI()
+    }
+
+    function startStatsUpdate() {
+      updateTime()
+      updateStats()
+      
+      setInterval(updateTime, 1000)
+      statsInterval = setInterval(updateStats, 5000)
+    }
+
+    function updateTime() {
+      const now = new Date()
+      document.getElementById('currentTime').textContent = now.toLocaleTimeString()
+
+      if (isPunchedIn && lastPunchIn) {
+        const diff = now - lastPunchIn
+        const hours = Math.floor(diff / 1000 / 60 / 60)
+        const minutes = Math.floor((diff / 1000 / 60) % 60)
+        document.getElementById('workingTime').textContent = `${hours}h ${minutes}m`
+      }
+
+      if (isOnBreak && breakStartTime) {
+        const diff = now - breakStartTime
+        const minutes = Math.floor(diff / 1000 / 60)
+        document.getElementById('breakTime').textContent = `${minutes}m`
       }
     }
-    
-    updateStats()
-    setInterval(updateStats, 5000)
+
+    async function updateStats() {
+      try {
+        const response = await fetch('http://localhost:3001/api/stats')
+        const stats = await response.json()
+        
+        const productivity = stats.productivity || 0
+        document.getElementById('productivity').textContent = `${parseFloat(productivity).toFixed(1)}%`
+      } catch (error) {
+        console.error('Error fetching stats:', error)
+      }
+    }
+
+    function updateUI() {
+      if (isPunchedIn) {
+        document.getElementById('punchInBtn').classList.add('hidden')
+        document.getElementById('punchOutBtn').classList.remove('hidden')
+        document.getElementById('statusBadge').textContent = `✓ Punched in since ${lastPunchIn.toLocaleTimeString()}`
+        document.getElementById('statusBadge').className = 'status-badge success'
+        document.getElementById('statusBadge').classList.remove('hidden')
+      } else {
+        document.getElementById('punchInBtn').classList.remove('hidden')
+        document.getElementById('punchOutBtn').classList.add('hidden')
+        document.getElementById('statusBadge').classList.add('hidden')
+      }
+
+      if (isOnBreak) {
+        document.getElementById('startBreakBtn').classList.add('hidden')
+        document.getElementById('endBreakBtn').classList.remove('hidden')
+        document.getElementById('statusBadge').textContent = `☕ Break in progress`
+        document.getElementById('statusBadge').className = 'status-badge warning'
+        document.getElementById('statusBadge').classList.remove('hidden')
+      } else {
+        document.getElementById('startBreakBtn').classList.remove('hidden')
+        document.getElementById('endBreakBtn').classList.add('hidden')
+      }
+    }
+
+    // Punch In
+    document.getElementById('punchInBtn').addEventListener('click', async () => {
+      try {
+        const response = await fetch('http://localhost:3001/api/punch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            employeeId: currentEmployee.id,
+            type: 'in'
+          })
+        })
+
+        const data = await response.json()
+        if (data.success) {
+          isPunchedIn = true
+          lastPunchIn = new Date()
+          updateUI()
+          alert('Punched in successfully!')
+        }
+      } catch (error) {
+        alert('Error punching in: ' + error.message)
+      }
+    })
+
+    // Punch Out
+    document.getElementById('punchOutBtn').addEventListener('click', async () => {
+      try {
+        const response = await fetch('http://localhost:3001/api/punch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            employeeId: currentEmployee.id,
+            type: 'out'
+          })
+        })
+
+        const data = await response.json()
+        if (data.success) {
+          isPunchedIn = false
+          lastPunchIn = null
+          updateUI()
+          alert('Punched out successfully!')
+        }
+      } catch (error) {
+        alert('Error punching out: ' + error.message)
+      }
+    })
+
+    // Start Break
+    document.getElementById('startBreakBtn').addEventListener('click', async () => {
+      if (!isPunchedIn) {
+        alert('Please punch in first!')
+        return
+      }
+
+      try {
+        const response = await fetch('http://localhost:3001/api/break', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            employeeId: currentEmployee.id,
+            action: 'start'
+          })
+        })
+
+        const data = await response.json()
+        if (data.success) {
+          isOnBreak = true
+          breakStartTime = new Date()
+          updateUI()
+          alert('Break started!')
+        }
+      } catch (error) {
+        alert('Error starting break: ' + error.message)
+      }
+    })
+
+    // End Break
+    document.getElementById('endBreakBtn').addEventListener('click', async () => {
+      try {
+        const response = await fetch('http://localhost:3001/api/break', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            employeeId: currentEmployee.id,
+            action: 'end'
+          })
+        })
+
+        const data = await response.json()
+        if (data.success) {
+          isOnBreak = false
+          breakStartTime = null
+          updateUI()
+          alert('Break ended!')
+        }
+      } catch (error) {
+        alert('Error ending break: ' + error.message)
+      }
+    })
+
+    // Logout
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      if (isPunchedIn) {
+        if (!confirm('You are still punched in. Are you sure you want to logout?')) {
+          return
+        }
+      }
+
+      currentEmployee = null
+      isPunchedIn = false
+      isOnBreak = false
+      lastPunchIn = null
+      breakStartTime = null
+      
+      if (statsInterval) {
+        clearInterval(statsInterval)
+      }
+
+      document.getElementById('attendanceScreen').classList.add('hidden')
+      document.getElementById('loginScreen').classList.remove('hidden')
+      document.getElementById('email').value = ''
+      document.getElementById('password').value = ''
+    })
   </script>
 </body>
 </html>

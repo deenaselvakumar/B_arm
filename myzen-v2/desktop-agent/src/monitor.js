@@ -2,6 +2,7 @@ const activeWin = require('active-win')
 const fs = require('fs')
 const path = require('path')
 const { machineIdSync } = require('node-machine-id')
+const { getSupabase, isSupabaseEnabled } = require('./supabase')
 
 class ActivityMonitor {
   constructor() {
@@ -10,7 +11,9 @@ class ActivityMonitor {
     this.isActive = false
     this.lastActivity = Date.now()
     this.checkInterval = null
+    this.syncInterval = null
     this.machineId = machineIdSync()
+    this.employeeId = process.env.EMPLOYEE_ID || null
     this.dataPath = path.join(__dirname, '../data/sessions.json')
     this.configPath = path.join(__dirname, '../data/config.json')
     
@@ -221,11 +224,20 @@ class ActivityMonitor {
   start() {
     console.log('Activity monitoring started')
     this.checkInterval = setInterval(() => this.checkActivity(), 5000)
+    
+    if (isSupabaseEnabled() && this.employeeId) {
+      console.log('Supabase sync enabled')
+      this.syncInterval = setInterval(() => this.syncToSupabase(), 60000)
+      this.updateEmployeeStatus('online')
+    }
   }
 
   stop() {
     if (this.checkInterval) {
       clearInterval(this.checkInterval)
+    }
+    if (this.syncInterval) {
+      clearInterval(this.syncInterval)
     }
     if (this.currentSession) {
       this.currentSession.endTime = Date.now()
@@ -233,7 +245,88 @@ class ActivityMonitor {
       this.sessions.push(this.currentSession)
       this.saveSessions()
     }
+    if (isSupabaseEnabled() && this.employeeId) {
+      this.updateEmployeeStatus('offline')
+      this.syncToSupabase()
+    }
     console.log('Activity monitoring stopped')
+  }
+
+  async syncToSupabase() {
+    if (!isSupabaseEnabled() || !this.employeeId) return
+
+    const supabase = getSupabase()
+    const today = new Date().toISOString().split('T')[0]
+
+    try {
+      const unsyncedSessions = this.sessions.filter(s => !s.synced)
+      
+      if (unsyncedSessions.length > 0) {
+        const sessionsToInsert = unsyncedSessions.map(s => ({
+          employee_id: this.employeeId,
+          start_time: new Date(s.startTime).toISOString(),
+          end_time: s.endTime ? new Date(s.endTime).toISOString() : null,
+          app_name: s.appName,
+          url: s.url,
+          category: s.category,
+          is_active: s.isActive,
+          duration_ms: s.duration
+        }))
+
+        const { error } = await supabase
+          .from('activity_sessions')
+          .insert(sessionsToInsert)
+
+        if (!error) {
+          unsyncedSessions.forEach(s => s.synced = true)
+          this.saveSessions()
+          console.log(`Synced ${unsyncedSessions.length} sessions to Supabase`)
+        }
+      }
+
+      const stats = this.getStats()
+      const { error: statsError } = await supabase
+        .from('daily_stats')
+        .upsert({
+          employee_id: this.employeeId,
+          stat_date: today,
+          online_minutes: stats.onlineTime,
+          active_minutes: stats.activeTime,
+          productive_minutes: stats.productiveTime,
+          productivity_percentage: parseFloat(stats.productivity),
+          present: true,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'employee_id,stat_date'
+        })
+
+      if (statsError) {
+        console.error('Error syncing stats:', statsError)
+      }
+    } catch (error) {
+      console.error('Error syncing to Supabase:', error)
+    }
+  }
+
+  async updateEmployeeStatus(status) {
+    if (!isSupabaseEnabled() || !this.employeeId) return
+
+    const supabase = getSupabase()
+    
+    try {
+      await supabase
+        .from('employees')
+        .update({ 
+          status,
+          machine_id: this.machineId,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', this.employeeId)
+      
+      console.log(`Employee status updated: ${status}`)
+    } catch (error) {
+      console.error('Error updating employee status:', error)
+    }
   }
 
   getStats() {
